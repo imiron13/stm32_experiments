@@ -34,4 +34,4 @@
 *.app
 
 # Project Preferences
-/.settings/stm32cubeide.project.prefs
+*.prefs
