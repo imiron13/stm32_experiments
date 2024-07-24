@@ -2,21 +2,22 @@
 
 #include "user_main.h"
 #include "main.h"
+#include "shell.h"
 
 extern UART_HandleTypeDef huart1;
 
-extern "C" int _write(int file, char *ptr, int len)
-{
-	HAL_UART_Transmit(&huart1, (const uint8_t *)ptr, len, 100);
+UartOutputDevice_t uart_out(&huart1);
+UartInputDevice_t uart_in(&huart1);
 
-	return len;
-}
+Shell_t shell(&uart_in, &uart_out, "> " , "\nWelcome to the STM32 Experiments Demo FW\n");
 
 int user_main()
 {
-    while (1)
+	shell.print_initial_prompt();
+
+	while (1)
     {
-    	printf("STM32 Experiments FW\n");
+		shell.run();
     }
     
     return 0;
