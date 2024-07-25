@@ -2,6 +2,13 @@
 
 #include "stm32f1xx_hal.h"
 
+FILE* uart_fopen(UART_HandleTypeDef *huart);
+
+// returning EOF for file read causes no further reads possible from the file,
+// but for UART as file we want to return no data, but be able to continue
+// reading later once data is available
+#define FILE_READ_NO_MORE_DATA			(-10)
+
 class OutputStreamDevice_t
 {
 public:
@@ -40,11 +47,6 @@ public:
 	{
 		HAL_UART_Transmit(m_huart, (uint8_t*)&c, 1, TIMEOUT);
 	}
-
-	void retarget_stdout()
-	{
-		s_stdout = m_huart;
-	}
 };
 
 class UartInputDevice_t : public InputStreamDevice_t
@@ -73,7 +75,7 @@ public:
 
 class ShellCmd_t;
 
-typedef bool (*ShellCmdHandler_t)(ShellCmd_t *cmd, const char *s);
+typedef bool (*ShellCmdHandler_t)(FILE *f, ShellCmd_t *cmd, const char *s);
 
 class ShellCmd_t
 {
@@ -92,15 +94,14 @@ public:
 	static int get_int_arg(const char *s, int arg_idx);
 
 	bool check(const char *s);
-	bool handle(const char *s);
+	bool handle(FILE *f, const char *s);
 };
 
 class Shell_t
 {
 	static const int MAX_STR_SIZE = 128;
 	static const int MAX_COMMANDS = 32;
-	InputStreamDevice_t *m_input;
-	OutputStreamDevice_t *m_output;
+	FILE *m_device;
 	const char *m_str_prompt;
 	const char *m_str_initial_prompt;
 	char line_buf[MAX_STR_SIZE];
@@ -109,8 +110,9 @@ class Shell_t
 	int num_commands;
 
 public:
-	Shell_t(InputStreamDevice_t *input, OutputStreamDevice_t *output, const char *str_prompt=NULL, const char *str_initial_prompt=NULL);
+	Shell_t(const char *str_prompt=NULL, const char *str_initial_prompt=NULL);
 
+	void set_device(FILE *device);
 	bool add_command(ShellCmd_t cmd);
 	ShellCmd_t *find_command();
 	bool handle_command(ShellCmd_t *cmd);
