@@ -10,6 +10,8 @@
 
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
+extern TIM_HandleTypeDef htim2;
+extern DMA_HandleTypeDef hdma_tim2_up;
 
 Shell_t shell("> " , "\nWelcome to the STM32 Experiments Demo FW\n");
 
@@ -84,6 +86,37 @@ bool shell_cmd_gpio_speed_test(FILE *f, ShellCmd_t *cmd, const char *s)
     return true;
 }
 
+bool shell_cmd_gpio_dma_test(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+	// taken from https://github.com/mnemocron/STM32_PatternDriver
+	static uint32_t pixelclock[16] = {0};
+	for (int i = 0; i < 16; i++)
+	{
+		if (i % 2 == 0)
+		{
+			pixelclock[i] = 0x00020000;
+		}
+		else
+		{
+			pixelclock[i] = 0x00000002;
+		}
+	}
+	// the pixelclock goes straight to the BSRR register
+	// [31 ... 16] are reset bits corresponding to Ports [15 ... 0]
+	// [15 ...  0] are   set bits corresponding to Ports [15 ... 0]
+	// if a reset bit is set, the GPIO port will be set LOW
+	// if a   set bit is set, the GPIO port will be set HIGH
+	pixelclock[ 5] |= 0x00000001;  // set SI signal on 1st clock edge
+	pixelclock[ 8] |= 0x00010000;  // reset SI signal on 3rd clock edge
+
+	// DMA, circular memory-to-peripheral mode, full word (32 bit) transfer
+	HAL_DMA_Start(&hdma_tim2_up,  (uint32_t)pixelclock, (uint32_t)&(GPIOB->BSRR), 16);
+	HAL_TIM_Base_Start(&htim2);
+	HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_1);
+	TIM2->DIER |= (1 << 8);   // set UDE bit (update dma request enable)
+	return true;
+}
+
 int user_main()
 {
     FILE *fuart1 = uart_fopen(&huart1);
@@ -94,6 +127,7 @@ int user_main()
     shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
     shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
     shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
+    shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
 
     fprintf(fuart1, "Hello from UART1\n");
     fprintf(fuart2, "Hello from UART2\n");
