@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <limits.h>
 
 #define FG_BLACK            "\e[30m"
 #define FG_RED              "\e[31m"
@@ -37,6 +38,7 @@
 #define BG_BRIGHT_WHITE     "\e[107m"
 
 #define VT100_CLEAR_SCREEN  "\e[2J"
+#define VT100_CURSOR_HOME   "\e[H"
 #define VT100_HIDE_CURSOR   "\e[?25l"
 #define VT100_SHOW_CURSOR   "\e[?25h"
 
@@ -61,6 +63,7 @@ public:
     static const char CHAR_CSI_PRIVATE = '?';
     static const int START_X_POS = 1;
     static const int START_Y_POS = 1;
+    static const int ARG_NOT_SPECIFIED = INT_MIN;
 
     typedef uint8_t ColorCode_t;
 

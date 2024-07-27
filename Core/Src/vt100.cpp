@@ -105,6 +105,10 @@ void Vt100TerminalServer_t::reset_parser()
     m_parser_state = VT100_PARSER_STATE_DEFAULT;
     m_args_parser_state = ARGS_PARSER_STATE_WAIT_DIGIT1;
     m_num_args = 0;
+    for (int i = 0; i < MAX_ARGS; i++)
+    {
+        m_args[i] = ARG_NOT_SPECIFIED;
+    }
 }
 
 void Vt100TerminalServer_t::reset()
@@ -127,6 +131,15 @@ void Vt100TerminalServer_t::handle_escape_sequence_end(char c)
         switch (c)
         {
         case 'H':
+            if (m_args[0] == ARG_NOT_SPECIFIED)
+            {
+                m_args[0] = START_Y_POS;
+            }
+            if (m_args[1] == ARG_NOT_SPECIFIED)
+            {
+                m_args[1] = START_X_POS;
+            }
+
             set_pos(m_args[1], m_args[0]);  // first arg is y, second is x
             break;
         case 'm':

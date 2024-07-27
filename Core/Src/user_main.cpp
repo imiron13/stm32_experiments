@@ -17,7 +17,7 @@ extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim2;
 extern DMA_HandleTypeDef hdma_tim2_up;
 
-Shell_t shell("> " , "\nWelcome to the STM32 Experiments Demo FW\n");
+Shell_t shell;
 TetrisGame_t<16, 16> tetris;
 FILE *fuart1;
 FILE *fuart2;
@@ -220,8 +220,14 @@ bool shell_cmd_tetris(FILE *f, ShellCmd_t *cmd, const char *s)
         quit = tetris.run_ui();
         HAL_Delay(tetris.get_ui_update_period_ms());
     }
-    fprintf(f, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN);
-    fprintf(f, VT100_SHOW_CURSOR "\e[%d;%dHThanks for playing!\n", 1, 1);
+    fprintf(f, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME VT100_SHOW_CURSOR);
+    fprintf(f, "Thanks for playing!\n");
+    return true;
+}
+
+bool shell_cmd_clear_screen(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    fprintf(f, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME);
     return true;
 }
 
@@ -231,25 +237,28 @@ int user_main()
 
     fuart1 = uart_fopen(&huart1);
     fuart2 = uart_fopen(&huart2);
-    stdout = uart_fopen(&huart2);
     fst7735 = st7735_vt100.fopen(uart_read, &huart1);
+    stdout = fst7735;
 
-    shell.set_device(stdout);
     shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
     shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
     shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
     shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
     shell.add_command(ShellCmd_t("tetris", "Tetris!", shell_cmd_tetris));
+    shell.add_command(ShellCmd_t("cls", "Clear screen", shell_cmd_clear_screen));
 
-    fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN "Hello from ST7735\n");
-    fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN "Hello from UART1\n");
-    fprintf(fuart2, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN "Hello from UART2\n");
+    fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from ST7735\n");
+    fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from UART1\n");
+    fprintf(fuart2, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from UART2\n");
     printf("Hello from stdout\n");
 
+    const char *str_welcome = "\nWelcome to the STM32 Experiments Demo FW\n";
+    fprintf(fst7735, str_welcome);
+    fprintf(fuart2, str_welcome);
     shell.set_device(fst7735);
-    shell.print_initial_prompt();
+    shell.print_prompt();
     shell.set_device(fuart2);
-    shell.print_initial_prompt();
+    shell.print_prompt();
 
     while (1)
     {
