@@ -7,6 +7,8 @@
 #include "user_main.h"
 #include "main.h"
 #include "shell.h"
+#include "st7735.h"
+#include "vt100.h"
 
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
@@ -88,40 +90,62 @@ bool shell_cmd_gpio_speed_test(FILE *f, ShellCmd_t *cmd, const char *s)
 
 bool shell_cmd_gpio_dma_test(FILE *f, ShellCmd_t *cmd, const char *s)
 {
-	// taken from https://github.com/mnemocron/STM32_PatternDriver
-	static uint32_t pixelclock[16] = {0};
-	for (int i = 0; i < 16; i++)
-	{
-		if (i % 2 == 0)
-		{
-			pixelclock[i] = 0x00020000;
-		}
-		else
-		{
-			pixelclock[i] = 0x00000002;
-		}
-	}
-	// the pixelclock goes straight to the BSRR register
-	// [31 ... 16] are reset bits corresponding to Ports [15 ... 0]
-	// [15 ...  0] are   set bits corresponding to Ports [15 ... 0]
-	// if a reset bit is set, the GPIO port will be set LOW
-	// if a   set bit is set, the GPIO port will be set HIGH
-	pixelclock[ 5] |= 0x00000001;  // set SI signal on 1st clock edge
-	pixelclock[ 8] |= 0x00010000;  // reset SI signal on 3rd clock edge
+    // taken from https://github.com/mnemocron/STM32_PatternDriver
+    static uint32_t pixelclock[16] = {0};
+    for (int i = 0; i < 16; i++)
+    {
+        if (i % 2 == 0)
+        {
+            pixelclock[i] = 0x00020000;
+        }
+        else
+        {
+            pixelclock[i] = 0x00000002;
+        }
+    }
+    // the pixelclock goes straight to the BSRR register
+    // [31 ... 16] are reset bits corresponding to Ports [15 ... 0]
+    // [15 ...  0] are   set bits corresponding to Ports [15 ... 0]
+    // if a reset bit is set, the GPIO port will be set LOW
+    // if a   set bit is set, the GPIO port will be set HIGH
+    pixelclock[ 5] |= 0x00000001;  // set SI signal on 1st clock edge
+    pixelclock[ 8] |= 0x00010000;  // reset SI signal on 3rd clock edge
 
-	// DMA, circular memory-to-peripheral mode, full word (32 bit) transfer
-	HAL_DMA_Start(&hdma_tim2_up,  (uint32_t)pixelclock, (uint32_t)&(GPIOB->BSRR), 16);
-	HAL_TIM_Base_Start(&htim2);
-	HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_1);
-	TIM2->DIER |= (1 << 8);   // set UDE bit (update dma request enable)
-	return true;
+    // DMA, circular memory-to-peripheral mode, full word (32 bit) transfer
+    HAL_DMA_Start(&hdma_tim2_up,  (uint32_t)pixelclock, (uint32_t)&(GPIOB->BSRR), 16);
+    HAL_TIM_Base_Start(&htim2);
+    HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_1);
+    TIM2->DIER |= (1 << 8);   // set UDE bit (update dma request enable)
+    return true;
 }
+
+class St7735Vt100: public Vt100TerminalServer_t
+{
+public:
+	virtual void print_char(char c);
+	virtual RawColor_t rgb_to_raw_color(RgbColor_t rgb);
+};
+
+void St7735Vt100::print_char(char c)
+{
+	FontDef font = Font_7x10;
+	ST7735_WriteChar((m_x - 1) * font.width, (m_y - 1) * font.height, c, font, m_raw_text_color, m_raw_bg_color);
+}
+
+St7735Vt100::RawColor_t St7735Vt100::rgb_to_raw_color(RgbColor_t rgb)
+{
+	return (((uint32_t)rgb.r >> 3) << 11) | (((uint32_t)rgb.g >> 2) << 5) | (rgb.b >> 3);
+}
+
+St7735Vt100 st7735_vt100;
 
 int user_main()
 {
     FILE *fuart1 = uart_fopen(&huart1);
     FILE *fuart2 = uart_fopen(&huart2);
     stdout = uart_fopen(&huart2);
+    st7735_vt100.init(19, 18);
+    FILE *fst7735 = st7735_vt100.fopen();
 
     shell.set_device(stdout);
     shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
@@ -129,9 +153,15 @@ int user_main()
     shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
     shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
 
+    ST7735_Init();
+    //lcd_test();
+
     fprintf(fuart1, "Hello from UART1\n");
     fprintf(fuart2, "Hello from UART2\n");
     printf("Hello from stdout\n");
+    fprintf(fst7735, BG_BRIGHT_WHITE BG_BRIGHT_BLUE VT100_CLEAR_SCREEN "\e[2JHello from ST7735\n");
+    fprintf(fst7735, BG_BRIGHT_WHITE BG_BRIGHT_MAGENTA "Hello from ST7735\n");
+    fprintf(fst7735, FG_BLACK BG_BRIGHT_YELLOW "Hello from ST7735\n");
 
     shell.set_device(fuart1);
     shell.print_initial_prompt();

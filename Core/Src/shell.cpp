@@ -23,17 +23,12 @@ extern "C" ssize_t uart_read(void *huart, char* buff, size_t len)
     return bytes_read == 0 ? FILE_READ_NO_MORE_DATA : bytes_read;
 }
 
-extern "C" int uart_fseek(void *huart, off_t *_off, int _whence)
-{
-    return 0;
-}
-
 FILE* uart_fopen(UART_HandleTypeDef *huart)
 {
     cookie_io_functions_t cookie_funcs = {
         .read = uart_read,
         .write = uart_write,
-        .seek = uart_fseek,
+        .seek = 0,
         .close = 0
     };
     FILE *f = fopencookie(huart, "a+", cookie_funcs);
