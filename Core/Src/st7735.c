@@ -176,11 +176,27 @@ void ST7735_DrawPixel(uint16_t x, uint16_t y, uint16_t color) {
 void ST7735_WriteChar(uint16_t x, uint16_t y, char ch, FontDef font, uint16_t color, uint16_t bgcolor) {
     uint32_t i, b, j;
 
-    ST7735_SetAddressWindow(x, y, x+font.width-1, y+font.height-1);
+    int x1 = x + font.width - 1;
+    int y1 = y + font.height - 1;
+    int font_width_truncated = font.width;
+    int font_height_truncated = font.height;
+    if (x1 >= ST7735_WIDTH)
+    {
+        font_width_truncated = ST7735_WIDTH - x;
+        x1 = ST7735_WIDTH - 1;
+    }
 
-    for(i = 0; i < font.height; i++) {
+    if (y1 >= ST7735_HEIGHT)
+    {
+        font_height_truncated = ST7735_HEIGHT - y;
+        y1 = ST7735_HEIGHT - 1;
+    }
+
+    ST7735_SetAddressWindow(x, y, x1, y1);
+
+    for(i = 0; i < font_height_truncated; i++) {
         b = font.data[(ch - 32) * font.height + i];
-        for(j = 0; j < font.width; j++) {
+        for(j = 0; j < font_width_truncated; j++) {
             if((b << j) & 0x8000)  {
                 uint8_t data[] = { color >> 8, color & 0xFF };
                 ST7735_WriteData(data, sizeof(data));

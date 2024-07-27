@@ -9,6 +9,7 @@
 #include "shell.h"
 #include "st7735.h"
 #include "vt100.h"
+#include "utils.h"
 
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
@@ -121,15 +122,27 @@ bool shell_cmd_gpio_dma_test(FILE *f, ShellCmd_t *cmd, const char *s)
 
 class St7735Vt100: public Vt100TerminalServer_t
 {
+    FontDef m_font;
 public:
+    void init(FontDef font);
+
     virtual void print_char(char c);
     virtual RawColor_t rgb_to_raw_color(RgbColor_t rgb);
 };
 
+void St7735Vt100::init(FontDef font)
+{
+    ST7735_Init();
+    m_font = font;
+    Vt100TerminalServer_t::init(Utils_t::div_ceil_uint(ST7735_WIDTH, m_font.width), Utils_t::div_ceil_uint(ST7735_HEIGHT, m_font.height));
+}
+
 void St7735Vt100::print_char(char c)
 {
-    FontDef font = Font_7x10;
-    ST7735_WriteChar((m_x - 1) * font.width, (m_y - 1) * font.height, c, font, m_raw_text_color, m_raw_bg_color);
+    if (m_x <= m_width && m_y <= m_height)
+    {
+        ST7735_WriteChar((m_x - 1) * m_font.width, (m_y - 1) * m_font.height, c, m_font, m_raw_text_color, m_raw_bg_color);
+    }
 }
 
 St7735Vt100::RawColor_t St7735Vt100::rgb_to_raw_color(RgbColor_t rgb)
@@ -142,10 +155,11 @@ St7735Vt100 st7735_vt100;
 
 int user_main()
 {
+    st7735_vt100.init(Font_7x10);
+
     FILE *fuart1 = uart_fopen(&huart1);
     FILE *fuart2 = uart_fopen(&huart2);
     stdout = uart_fopen(&huart2);
-    st7735_vt100.init(19, 18);
     FILE *fst7735 = st7735_vt100.fopen();
 
     shell.set_device(stdout);
@@ -154,7 +168,6 @@ int user_main()
     shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
     shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
 
-    ST7735_Init();
 
     fprintf(fuart1, "Hello from UART1\n");
     fprintf(fuart2, "Hello from UART2\n");
