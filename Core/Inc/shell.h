@@ -9,6 +9,8 @@ FILE* uart_fopen(UART_HandleTypeDef *huart);
 // reading later once data is available
 #define FILE_READ_NO_MORE_DATA          (-10)
 
+extern "C" ssize_t uart_read(void *huart, char* buff, size_t len);
+
 class ShellCmd_t;
 
 typedef bool (*ShellCmdHandler_t)(FILE *f, ShellCmd_t *cmd, const char *s);

@@ -258,13 +258,16 @@ extern "C" ssize_t vt100_write(void *vt100, const char *ptr, size_t len)
     return len;
 }
 
-extern "C" ssize_t vt100_read(void *huart, char* buff, size_t len)
+extern "C" ssize_t vt100_read(void *vt100_ptr, char* buff, size_t len)
 {
-    return 0;
+    Vt100TerminalServer_t* vt100 = (Vt100TerminalServer_t*)vt100_ptr;
+    return vt100->get_read_func()(vt100->get_read_cookie(), buff, len);
 }
 
-FILE *Vt100TerminalServer_t::fopen()
+FILE *Vt100TerminalServer_t::fopen(cookie_read_function_t *read_func, void *read_cookie)
 {
+    m_read_func = read_func;
+    m_read_cookie = read_cookie;
     cookie_io_functions_t cookie_funcs = {
         .read = vt100_read,
         .write = vt100_write,

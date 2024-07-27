@@ -121,10 +121,12 @@ protected:
     RawColor_t m_raw_text_color;
     RawColor_t m_raw_bg_color;
 
+    cookie_read_function_t *m_read_func;
+    void *m_read_cookie;
 public:
     Vt100TerminalServer_t();
 
-    FILE *fopen();
+    FILE *fopen(cookie_read_function_t *read_func=NULL, void *read_cookie=NULL);
 
     virtual void print_char(char c) = 0;
     virtual RawColor_t rgb_to_raw_color(RgbColor_t rgb) = 0;
@@ -148,6 +150,9 @@ public:
     void handle_char(char c);
     void handle_ascii(char c);
     void handle_escape_sequence_end(char c);
+
+    cookie_read_function_t *get_read_func() { return m_read_func; }
+    void *get_read_cookie() { return m_read_cookie; }
 };
 
 class Vt100Terminal_t

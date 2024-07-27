@@ -160,7 +160,7 @@ int user_main()
     FILE *fuart1 = uart_fopen(&huart1);
     FILE *fuart2 = uart_fopen(&huart2);
     stdout = uart_fopen(&huart2);
-    FILE *fst7735 = st7735_vt100.fopen();
+    FILE *fst7735 = st7735_vt100.fopen(uart_read, &huart1);
 
     shell.set_device(stdout);
     shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
@@ -169,21 +169,21 @@ int user_main()
     shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
 
 
-    fprintf(fuart1, "Hello from UART1\n");
+    fprintf(fst7735, "Hello from UART1\n");
     fprintf(fuart2, "Hello from UART2\n");
     printf("Hello from stdout\n");
     fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_BLUE VT100_CLEAR_SCREEN "Hello from ST7735\n");
-    fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_MAGENTA "Hello from ST7735\n");
-    fprintf(fst7735, FG_BLACK BG_BRIGHT_YELLOW "Hello from ST7735\n");
+    //fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_MAGENTA "Hello from ST7735\n");
+    //fprintf(fst7735, FG_BLACK BG_BRIGHT_YELLOW "Hello from ST7735\n");
 
-    shell.set_device(fuart1);
+    shell.set_device(fst7735);
     shell.print_initial_prompt();
     shell.set_device(fuart2);
     shell.print_initial_prompt();
 
     while (1)
     {
-        shell.set_device(fuart1);
+        shell.set_device(fst7735);
         shell.run();
         shell.set_device(fuart2);
         shell.run();
