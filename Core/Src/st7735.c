@@ -326,3 +326,13 @@ void ST7735_SetGamma(GammaDef gamma)
     ST7735_WriteData((uint8_t *) &gamma, sizeof(gamma));
     ST7735_Unselect();
 }
+
+void ST7735_SetScrollPos(int num_pixels)
+{
+    static const uint8_t CMD_VSSTADRS   = 0x37;//Vertical Scrolling Start address               _CMD_VSCLLSA
+    ST7735_Select();
+    ST7735_WriteCommand(CMD_VSSTADRS);
+    uint8_t data[] = { num_pixels >> 8, num_pixels & 0xFF };
+    ST7735_WriteData(data, sizeof(data));
+    ST7735_Unselect();
+}

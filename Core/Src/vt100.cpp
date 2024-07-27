@@ -73,19 +73,29 @@ void Vt100TerminalServer_t::show_cursor()
     // not supported
 }
 
-void Vt100TerminalServer_t::scroll_up(int num_lines)
+void Vt100TerminalServer_t::scroll(int num_lines)
 {
     // not supported
 }
 
+void Vt100TerminalServer_t::clear_line(int line_num)
+{
+    int old_x = m_x;
+    int old_y = m_y;
+    m_y = line_num;
+    for (m_x = 1; m_x <= m_width; m_x++)
+    {
+        print_char(' ');
+    }
+    m_x = old_x;
+    m_y = old_y;
+}
+
 void Vt100TerminalServer_t::clear_screen()
 {
-    for (m_y = 1; m_y <= m_height; m_y++)
+    for (int y = 1; y <= m_height; y++)
     {
-        for (m_x = 1; m_x <= m_width; m_x++)
-        {
-            print_char(' ');
-        }
+        clear_line(y);
     }
     cursor_home();
 }
@@ -144,7 +154,7 @@ void Vt100TerminalServer_t::handle_escape_sequence_end(char c)
             clear_screen();
             break;
         case 'S':
-            scroll_up(m_args[0]);
+            scroll(m_args[0]);
             break;
         }
     }
@@ -168,6 +178,10 @@ void Vt100TerminalServer_t::handle_ascii(char c)
     if (c == '\n')
     {
         m_x = START_X_POS;
+        if (m_y == m_height)
+        {
+            scroll(1);
+        }
         m_y++;
     }
     else

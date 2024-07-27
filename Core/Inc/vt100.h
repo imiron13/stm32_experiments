@@ -133,7 +133,8 @@ public:
     virtual void hide_cursor();
     virtual void show_cursor();
     virtual void clear_screen();
-    virtual void scroll_up(int num_lines);
+    virtual void clear_line(int line_num);
+    virtual void scroll(int num_lines);
     virtual void set_pos(int x, int y);
 
     void init(int width, int height);
