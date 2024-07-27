@@ -222,10 +222,10 @@ extern SPI_HandleTypeDef ST7735_SPI_PORT;
 #define ST7735_GMCTRN1 0xE1
 
 // Color definitions
-#define	ST7735_BLACK   0x0000
-#define	ST7735_BLUE    0x001F
-#define	ST7735_RED     0xF800
-#define	ST7735_GREEN   0x07E0
+#define ST7735_BLACK   0x0000
+#define ST7735_BLUE    0x001F
+#define ST7735_RED     0xF800
+#define ST7735_GREEN   0x07E0
 #define ST7735_CYAN    0x07FF
 #define ST7735_MAGENTA 0xF81F
 #define ST7735_YELLOW  0xFFE0
@@ -233,10 +233,10 @@ extern SPI_HandleTypeDef ST7735_SPI_PORT;
 #define ST7735_COLOR565(r, g, b) (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3))
 
 typedef enum {
-	GAMMA_10 = 0x01,
-	GAMMA_25 = 0x02,
-	GAMMA_22 = 0x04,
-	GAMMA_18 = 0x08
+    GAMMA_10 = 0x01,
+    GAMMA_25 = 0x02,
+    GAMMA_22 = 0x04,
+    GAMMA_18 = 0x08
 } GammaDef;
 
 #ifdef __cplusplus

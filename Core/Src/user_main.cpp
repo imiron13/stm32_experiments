@@ -122,19 +122,20 @@ bool shell_cmd_gpio_dma_test(FILE *f, ShellCmd_t *cmd, const char *s)
 class St7735Vt100: public Vt100TerminalServer_t
 {
 public:
-	virtual void print_char(char c);
-	virtual RawColor_t rgb_to_raw_color(RgbColor_t rgb);
+    virtual void print_char(char c);
+    virtual RawColor_t rgb_to_raw_color(RgbColor_t rgb);
 };
 
 void St7735Vt100::print_char(char c)
 {
-	FontDef font = Font_7x10;
-	ST7735_WriteChar((m_x - 1) * font.width, (m_y - 1) * font.height, c, font, m_raw_text_color, m_raw_bg_color);
+    FontDef font = Font_7x10;
+    ST7735_WriteChar((m_x - 1) * font.width, (m_y - 1) * font.height, c, font, m_raw_text_color, m_raw_bg_color);
 }
 
 St7735Vt100::RawColor_t St7735Vt100::rgb_to_raw_color(RgbColor_t rgb)
 {
-	return (((uint32_t)rgb.r >> 3) << 11) | (((uint32_t)rgb.g >> 2) << 5) | (rgb.b >> 3);
+    // 16 bits color mode: BIT [15:11] - B, BITS[10:5] - G, BITS[4:0] - R
+    return (((uint32_t)rgb.r >> 3) << 11) | (((uint32_t)rgb.g >> 2) << 5) | (rgb.b >> 3);
 }
 
 St7735Vt100 st7735_vt100;
@@ -154,13 +155,12 @@ int user_main()
     shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
 
     ST7735_Init();
-    //lcd_test();
 
     fprintf(fuart1, "Hello from UART1\n");
     fprintf(fuart2, "Hello from UART2\n");
     printf("Hello from stdout\n");
-    fprintf(fst7735, BG_BRIGHT_WHITE BG_BRIGHT_BLUE VT100_CLEAR_SCREEN "\e[2JHello from ST7735\n");
-    fprintf(fst7735, BG_BRIGHT_WHITE BG_BRIGHT_MAGENTA "Hello from ST7735\n");
+    fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_BLUE VT100_CLEAR_SCREEN "Hello from ST7735\n");
+    fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_MAGENTA "Hello from ST7735\n");
     fprintf(fst7735, FG_BLACK BG_BRIGHT_YELLOW "Hello from ST7735\n");
 
     shell.set_device(fuart1);

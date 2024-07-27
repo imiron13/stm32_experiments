@@ -268,7 +268,7 @@ void ST7735_FillRectangleFast(uint16_t x, uint16_t y, uint16_t w, uint16_t h, ui
     uint8_t pixel[] = { color >> 8, color & 0xFF };
     uint8_t *line = malloc(w * sizeof(pixel));
     for(x = 0; x < w; ++x)
-    	memcpy(line + x * sizeof(pixel), pixel, sizeof(pixel));
+        memcpy(line + x * sizeof(pixel), pixel, sizeof(pixel));
 
     HAL_GPIO_WritePin(ST7735_DC_GPIO_Port, ST7735_DC_Pin, GPIO_PIN_SET);
     for(y = h; y > 0; y--)
@@ -305,8 +305,8 @@ void ST7735_InvertColors(bool invert) {
 
 void ST7735_SetGamma(GammaDef gamma)
 {
-	ST7735_Select();
-	ST7735_WriteCommand(ST7735_GAMSET);
-	ST7735_WriteData((uint8_t *) &gamma, sizeof(gamma));
-	ST7735_Unselect();
+    ST7735_Select();
+    ST7735_WriteCommand(ST7735_GAMSET);
+    ST7735_WriteData((uint8_t *) &gamma, sizeof(gamma));
+    ST7735_Unselect();
 }
