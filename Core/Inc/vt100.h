@@ -37,6 +37,8 @@
 #define BG_BRIGHT_WHITE     "\e[107m"
 
 #define VT100_CLEAR_SCREEN  "\e[2J"
+#define VT100_HIDE_CURSOR   "\e[?25l"
+#define VT100_SHOW_CURSOR   "\e[?25h"
 
 union RgbColor_t
 {

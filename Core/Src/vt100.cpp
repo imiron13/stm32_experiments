@@ -127,7 +127,7 @@ void Vt100TerminalServer_t::handle_escape_sequence_end(char c)
         switch (c)
         {
         case 'H':
-            set_pos(m_args[0], m_args[1]);
+            set_pos(m_args[1], m_args[0]);  // first arg is y, second is x
             break;
         case 'm':
             // Select Graphic Rendition (SGR)

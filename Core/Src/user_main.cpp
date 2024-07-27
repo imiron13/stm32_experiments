@@ -18,6 +18,94 @@ extern TIM_HandleTypeDef htim2;
 extern DMA_HandleTypeDef hdma_tim2_up;
 
 Shell_t shell("> " , "\nWelcome to the STM32 Experiments Demo FW\n");
+TetrisGame_t<16, 16> tetris;
+FILE *fuart1;
+FILE *fuart2;
+FILE *fst7735;
+
+class St7735Vt100_t: public Vt100TerminalServer_t
+{
+    FontDef m_font;
+    int m_cur_scroll_pos;
+public:
+    void init(FontDef font);
+
+    virtual void print_char(char c);
+    virtual RawColor_t rgb_to_raw_color(RgbColor_t rgb);
+    virtual void scroll(int num_lines);
+};
+
+void St7735Vt100_t::init(FontDef font)
+{
+    ST7735_Init();
+    m_font = font;
+    m_cur_scroll_pos = 0;
+    Vt100TerminalServer_t::init(Utils_t::div_ceil_uint(ST7735_WIDTH, m_font.width), Utils_t::div_ceil_uint(ST7735_HEIGHT, m_font.height));
+}
+
+void St7735Vt100_t::print_char(char c)
+{
+    if (m_x <= m_width && m_y <= m_height)
+    {
+        int ypos = m_y - 1 - m_cur_scroll_pos;
+        if (ypos < 0)
+        {
+            ypos += m_height;
+        }
+        ST7735_WriteChar((m_x - 1) * m_font.width, ypos * m_font.height, c, m_font, m_raw_text_color, m_raw_bg_color);
+    }
+}
+
+St7735Vt100_t::RawColor_t St7735Vt100_t::rgb_to_raw_color(RgbColor_t rgb)
+{
+    // 16 bits color mode: BIT [15:11] - B, BITS[10:5] - G, BITS[4:0] - R
+    return (((uint32_t)rgb.r >> 3) << 11) | (((uint32_t)rgb.g >> 2) << 5) | (rgb.b >> 3);
+}
+
+void St7735Vt100_t::scroll(int num_lines)
+{
+    if (num_lines >= 0)
+    {
+        for (int i = 0; i < num_lines; i++)
+        {
+            if (m_cur_scroll_pos == 0)
+            {
+                m_cur_scroll_pos = m_height - 1;
+            }
+            else
+            {
+                m_cur_scroll_pos--;
+            }
+            m_y--;
+        }
+    }
+    else
+    {
+        for (int i = 0; i < -num_lines; i++)
+        {
+            if (m_cur_scroll_pos == m_height - 1)
+            {
+                m_cur_scroll_pos = 0;
+            }
+            else
+            {
+                m_cur_scroll_pos++;
+            }
+            m_y++;
+        }
+    }
+    ST7735_SetScrollPos(m_font.height * m_cur_scroll_pos);
+    if (num_lines > 0)
+    {
+        clear_line(m_height);
+    }
+    else if (num_lines < 0)
+    {
+        clear_line(1);
+    }
+}
+
+St7735Vt100_t st7735_vt100;
 
 bool shell_cmd_sum_handler(FILE *f, ShellCmd_t *cmd, const char *s)
 {
@@ -121,154 +209,54 @@ bool shell_cmd_gpio_dma_test(FILE *f, ShellCmd_t *cmd, const char *s)
     return true;
 }
 
-class St7735Vt100: public Vt100TerminalServer_t
+bool shell_cmd_tetris(FILE *f, ShellCmd_t *cmd, const char *s)
 {
-    FontDef m_font;
-    int m_cur_scroll_pos;
-public:
-    void init(FontDef font);
+    tetris.set_device(f);
+    tetris.start_game();
 
-    virtual void print_char(char c);
-    virtual RawColor_t rgb_to_raw_color(RgbColor_t rgb);
-    virtual void scroll(int num_lines);
-};
-
-void St7735Vt100::init(FontDef font)
-{
-    ST7735_Init();
-    m_font = font;
-    m_cur_scroll_pos = 0;
-    Vt100TerminalServer_t::init(Utils_t::div_ceil_uint(ST7735_WIDTH, m_font.width), Utils_t::div_ceil_uint(ST7735_HEIGHT, m_font.height));
+    bool quit = false;
+    while (!quit)
+    {
+        quit = tetris.run_ui();
+        HAL_Delay(tetris.get_ui_update_period_ms());
+    }
+    fprintf(f, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN);
+    fprintf(f, VT100_SHOW_CURSOR "\e[%d;%dHThanks for playing!\n", 1, 1);
+    return true;
 }
-
-void St7735Vt100::print_char(char c)
-{
-    if (m_x <= m_width && m_y <= m_height)
-    {
-        int ypos = m_y - 1 - m_cur_scroll_pos;
-        if (ypos < 0)
-        {
-            ypos += m_height;
-        }
-        ST7735_WriteChar((m_x - 1) * m_font.width, ypos * m_font.height, c, m_font, m_raw_text_color, m_raw_bg_color);
-    }
-}
-
-St7735Vt100::RawColor_t St7735Vt100::rgb_to_raw_color(RgbColor_t rgb)
-{
-    // 16 bits color mode: BIT [15:11] - B, BITS[10:5] - G, BITS[4:0] - R
-    return (((uint32_t)rgb.r >> 3) << 11) | (((uint32_t)rgb.g >> 2) << 5) | (rgb.b >> 3);
-}
-
-void St7735Vt100::scroll(int num_lines)
-{
-    if (num_lines >= 0)
-    {
-        for (int i = 0; i < num_lines; i++)
-        {
-            if (m_cur_scroll_pos == 0)
-            {
-                m_cur_scroll_pos = m_height - 1;
-            }
-            else
-            {
-                m_cur_scroll_pos--;
-            }
-            m_y--;
-        }
-    }
-    else
-    {
-        for (int i = 0; i < -num_lines; i++)
-        {
-            if (m_cur_scroll_pos == m_height - 1)
-            {
-                m_cur_scroll_pos = 0;
-            }
-            else
-            {
-                m_cur_scroll_pos++;
-            }
-            m_y++;
-        }
-    }
-    ST7735_SetScrollPos(m_font.height * m_cur_scroll_pos);
-    if (num_lines > 0)
-    {
-        clear_line(m_height);
-    }
-    else if (num_lines < 0)
-    {
-        clear_line(1);
-    }
-}
-
-St7735Vt100 st7735_vt100;
-TetrisGame_t<16, 16> tetris;
 
 int user_main()
 {
     st7735_vt100.init(Font_7x10);
 
-    FILE *fuart1 = uart_fopen(&huart1);
-    FILE *fuart2 = uart_fopen(&huart2);
+    fuart1 = uart_fopen(&huart1);
+    fuart2 = uart_fopen(&huart2);
     stdout = uart_fopen(&huart2);
-    FILE *fst7735 = st7735_vt100.fopen(uart_read, &huart1);
+    fst7735 = st7735_vt100.fopen(uart_read, &huart1);
 
     shell.set_device(stdout);
     shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
     shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
     shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
     shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
+    shell.add_command(ShellCmd_t("tetris", "Tetris!", shell_cmd_tetris));
 
-
-    fprintf(fst7735, "Hello from UART1\n");
-    fprintf(fuart2, "Hello from UART2\n");
+    fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN "Hello from ST7735\n");
+    fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN "Hello from UART1\n");
+    fprintf(fuart2, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN "Hello from UART2\n");
     printf("Hello from stdout\n");
-    //fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_BLUE VT100_CLEAR_SCREEN "Hello from ST7735\n");
-    //fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_MAGENTA "Hello from ST7735\n");
-    //fprintf(fst7735, FG_BLACK BG_BRIGHT_YELLOW "Hello from ST7735\n");
-    fprintf(fst7735, BG_BRIGHT_BLUE FG_BRIGHT_WHITE VT100_CLEAR_SCREEN);
-    //shell.set_device(fst7735);
-    //shell.print_initial_prompt();
+
+    shell.set_device(fst7735);
+    shell.print_initial_prompt();
     shell.set_device(fuart2);
     shell.print_initial_prompt();
 
-    tetris.start_game();
-    tetris.render_background(fst7735);
-
-    int i = 0;
     while (1)
     {
-        //shell.set_device(fst7735);
-        //shell.run();
-        //shell.set_device(fuart2);
-        //shell.run();
-        int c = fgetc(fst7735);
-        if (c != FILE_READ_NO_MORE_DATA && c != EOF)
-        {
-            if (c == 'a')
-            {
-                tetris.handle_user_input(tetris.SHIFT_LEFT);
-            }
-            else if (c == 'd')
-            {
-                tetris.handle_user_input(tetris.SHIFT_RIGHT);
-            }
-            else if (c == 'w')
-            {
-                tetris.handle_user_input(tetris.ROTATE);
-            }
-            else if (c == 's')
-            {
-                tetris.handle_user_input(tetris.SPEED_UP);
-            }
-        }
-
-        tetris.render(fst7735);
-        HAL_Delay(tetris.get_cur_fall_delay_ms() / 4);
-        i = (i + 1) % 4;
-        if (i == 0) tetris.fall_one_step_down();
+        shell.set_device(fst7735);
+        shell.run();
+        shell.set_device(fuart2);
+        shell.run();
     }
     
     return 0;

@@ -26,10 +26,19 @@ class TetrisGame_t
 		NUM_ORIENTATIONS
 	};
 
+    enum UserInput_t
+    {
+        SHIFT_LEFT,
+        SHIFT_RIGHT,
+        ROTATE,
+        SPEED_UP
+    };
+
 	static const int BITS_PER_BYTE = 8;
 	static const int FIGURE_MAX_WIDTH = 4;
 	static const int SPEED_UP_FALL_DELAY_MS = 50;
 	static const int INITIAL_FALL_DELAY_MS = 300;
+    static const int NUM_INPUT_PHASES = 4;
 	static const uint8_t s_figures_bitmap[NUM_FIGURES][NUM_ORIENTATIONS][FIGURE_MAX_WIDTH];
 
 	uint8_t m_bitmap[WIDTH][(HEIGHT + BITS_PER_BYTE - 1) / BITS_PER_BYTE];
@@ -41,43 +50,40 @@ class TetrisGame_t
 	int score;
 	int cur_fall_delay_ms;
 	int normal_fall_delay_ms;
-	bool m_is_score_updated;
+	bool m_need_redraw_score;
+	bool m_need_redraw_background;
+	FILE *m_device;
+
+    bool is_occupied(int x, int y);
+    void set(int x, int y);
+    void clear(int x, int y);
+    bool is_figure_location_valid(int x, int y, FigureType_t fig, FigureOrientation_t orientation);
+    bool rotate_figure();
+    bool shift_figure(int shift_x, int shift_y);
+    void land_figure();
+    bool get_figure_bit(FigureType_t fig, FigureOrientation_t orientation, int ofs_x, int ofs_y);
+    void get_new_figure();
+    bool check_full_line(int y);
+    void check_full_lines();
+    void remove_line(int y);
+    void update_score(int num_full_lines);
+    void apply_figure();
+    void remove_figure();
+    void game_over();
+    int get_cur_fall_delay_ms();
+
+    void handle_user_input(UserInput_t input);
+    void fall_one_step_down();
+    void render();
+    void render_background();
 
 public:
-	enum UserInput_t
-	{
-		SHIFT_LEFT,
-		SHIFT_RIGHT,
-		ROTATE,
-		SPEED_UP
-	};
-
 	TetrisGame_t();
 
-	bool is_occupied(int x, int y);
-	void set(int x, int y);
-	void clear(int x, int y);
-	bool is_figure_location_valid(int x, int y, FigureType_t fig, FigureOrientation_t orientation);
-	bool rotate_figure();
-	bool shift_figure(int shift_x, int shift_y);
-	void land_figure();
-	bool get_figure_bit(FigureType_t fig, FigureOrientation_t orientation, int ofs_x, int ofs_y);
-	void get_new_figure();
-	bool check_full_line(int y);
-	void check_full_lines();
-	void remove_line(int y);
-	void update_score(int num_full_lines);
-	void apply_figure();
-	void remove_figure();
-
+	void set_device(FILE *f);
 	void start_game();
-	void game_over();
-	void handle_user_input(UserInput_t input);
-	void fall_one_step_down();
-
-	void render(FILE *f);
-	void render_background(FILE *f);
-	int get_cur_fall_delay_ms();
+	bool run_ui();
+	int get_ui_update_period_ms();
 };
 
 template<int WIDTH, int HEIGHT>
@@ -167,6 +173,12 @@ template<int WIDTH, int HEIGHT>
 TetrisGame_t<WIDTH, HEIGHT>::TetrisGame_t()
 {
 
+}
+
+template<int WIDTH, int HEIGHT>
+void TetrisGame_t<WIDTH, HEIGHT>::set_device(FILE *f)
+{
+    m_device = f;
 }
 
 template<int WIDTH, int HEIGHT>
@@ -300,7 +312,7 @@ void TetrisGame_t<WIDTH, HEIGHT>::update_score(int num_full_lines)
         {
             score += 80;
         }
-        m_is_score_updated = false;
+        m_need_redraw_score = true;
 	}
 }
 
@@ -386,7 +398,8 @@ void TetrisGame_t<WIDTH, HEIGHT>::start_game()
 	}
 	get_new_figure();
 	score = 0;
-	m_is_score_updated = false;
+	m_need_redraw_score = true;
+	m_need_redraw_background = true;
 	normal_fall_delay_ms = INITIAL_FALL_DELAY_MS;
 	cur_fall_delay_ms = normal_fall_delay_ms;
 }
@@ -436,18 +449,25 @@ void TetrisGame_t<WIDTH, HEIGHT>::fall_one_step_down()
 }
 
 template<int WIDTH, int HEIGHT>
-void TetrisGame_t<WIDTH, HEIGHT>::render_background(FILE *f)
+void TetrisGame_t<WIDTH, HEIGHT>::render_background()
 {
+    fprintf(m_device, VT100_HIDE_CURSOR BG_BRIGHT_BLUE FG_BRIGHT_WHITE VT100_CLEAR_SCREEN);
     for (int y = 1; y <= HEIGHT; y++)
     {
-        fprintf(f, "\e[%d;%dH|", 1, y);
-        fprintf(f, "\e[%d;%dH|", 2 + WIDTH, y);
+        fprintf(m_device, "\e[%d;%dH|", y, 1);
+        fprintf(m_device, "\e[%d;%dH|", y, 2 + WIDTH);
     }
 }
 
 template<int WIDTH, int HEIGHT>
-void TetrisGame_t<WIDTH, HEIGHT>::render(FILE *f)
+void TetrisGame_t<WIDTH, HEIGHT>::render()
 {
+    if (m_need_redraw_background)
+    {
+        render_background();
+        m_need_redraw_background = false;
+    }
+
 	for (size_t i = 0; i < sizeof(m_bitmap); i++)
 	{
 		int xor_res = ((uint8_t*)m_bitmap)[i] ^ ((uint8_t*)m_prev_bitmap)[i];
@@ -461,22 +481,67 @@ void TetrisGame_t<WIDTH, HEIGHT>::render(FILE *f)
 				if ((xor_res >> y_ofs) & 0x01)
 				{
 					bool val = (((uint8_t*)m_bitmap)[i] >> y_ofs) & 0x01;
-					fprintf(f, "\e[%d;%dH%c", 2 + x, HEIGHT - y - y_ofs, val ? 'o' : ' ');
+					fprintf(m_device, "\e[%d;%dH%c", HEIGHT - y - y_ofs, 2 + x, val ? 'o' : ' ');
 				}
 			}
 		}
 	}
 
-	if (!m_is_score_updated)
+	if (m_need_redraw_score)
 	{
-	    fprintf(f, "\e[%d;%dH%4d", 2, 1, score);
-	    m_is_score_updated = true;
+	    fprintf(m_device, "\e[%d;%dH%4d", 1, 2, score);
+	    m_need_redraw_score = false;
 	}
-	fflush(f);
+	fflush(m_device);
 }
 
 template<int WIDTH, int HEIGHT>
 int TetrisGame_t<WIDTH, HEIGHT>::get_cur_fall_delay_ms()
 {
-	return cur_fall_delay_ms;
+    return cur_fall_delay_ms;
+}
+template<int WIDTH, int HEIGHT>
+int TetrisGame_t<WIDTH, HEIGHT>::get_ui_update_period_ms()
+{
+    return get_cur_fall_delay_ms() / NUM_INPUT_PHASES;
+}
+
+template<int WIDTH, int HEIGHT>
+bool TetrisGame_t<WIDTH, HEIGHT>::run_ui()
+{
+    static int input_phase = 0;
+
+    int c = fgetc(m_device);
+    if (c != FILE_READ_NO_MORE_DATA && c != EOF)
+    {
+        if (c == 'a')
+        {
+            handle_user_input(SHIFT_LEFT);
+        }
+        else if (c == 'd')
+        {
+            handle_user_input(SHIFT_RIGHT);
+        }
+        else if (c == 'w')
+        {
+            handle_user_input(ROTATE);
+        }
+        else if (c == 's')
+        {
+            handle_user_input(SPEED_UP);
+        }
+        else if (c == 'q')
+        {
+            return true;
+        }
+    }
+
+    render();
+
+    input_phase = (input_phase + 1) % NUM_INPUT_PHASES;
+    if (input_phase == 0)
+    {
+        fall_one_step_down();
+    }
+    return false;
 }
