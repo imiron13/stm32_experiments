@@ -184,6 +184,13 @@ void Vt100TerminalServer_t::handle_ascii(char c)
         }
         m_y++;
     }
+    else if (c == '\b')
+    {
+        if (m_x > START_X_POS)
+        {
+            m_x--;
+        }
+    }
     else
     {
         print_char(c);

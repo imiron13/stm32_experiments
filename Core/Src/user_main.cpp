@@ -10,6 +10,7 @@
 #include "st7735.h"
 #include "vt100.h"
 #include "utils.h"
+#include "tetris.h"
 
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
@@ -203,7 +204,7 @@ void St7735Vt100::scroll(int num_lines)
 }
 
 St7735Vt100 st7735_vt100;
-
+TetrisGame_t<16, 16> tetris;
 
 int user_main()
 {
@@ -224,21 +225,50 @@ int user_main()
     fprintf(fst7735, "Hello from UART1\n");
     fprintf(fuart2, "Hello from UART2\n");
     printf("Hello from stdout\n");
-    fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_BLUE VT100_CLEAR_SCREEN "Hello from ST7735\n");
+    //fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_BLUE VT100_CLEAR_SCREEN "Hello from ST7735\n");
     //fprintf(fst7735, FG_BRIGHT_WHITE BG_BRIGHT_MAGENTA "Hello from ST7735\n");
     //fprintf(fst7735, FG_BLACK BG_BRIGHT_YELLOW "Hello from ST7735\n");
-
-    shell.set_device(fst7735);
-    shell.print_initial_prompt();
+    fprintf(fst7735, BG_BRIGHT_BLUE FG_BRIGHT_WHITE VT100_CLEAR_SCREEN);
+    //shell.set_device(fst7735);
+    //shell.print_initial_prompt();
     shell.set_device(fuart2);
     shell.print_initial_prompt();
 
+    tetris.start_game();
+    tetris.render_background(fst7735);
+
+    int i = 0;
     while (1)
     {
-        shell.set_device(fst7735);
-        shell.run();
-        shell.set_device(fuart2);
-        shell.run();
+        //shell.set_device(fst7735);
+        //shell.run();
+        //shell.set_device(fuart2);
+        //shell.run();
+        int c = fgetc(fst7735);
+        if (c != FILE_READ_NO_MORE_DATA && c != EOF)
+        {
+            if (c == 'a')
+            {
+                tetris.handle_user_input(tetris.SHIFT_LEFT);
+            }
+            else if (c == 'd')
+            {
+                tetris.handle_user_input(tetris.SHIFT_RIGHT);
+            }
+            else if (c == 'w')
+            {
+                tetris.handle_user_input(tetris.ROTATE);
+            }
+            else if (c == 's')
+            {
+                tetris.handle_user_input(tetris.SPEED_UP);
+            }
+        }
+
+        tetris.render(fst7735);
+        HAL_Delay(tetris.get_cur_fall_delay_ms() / 4);
+        i = (i + 1) % 4;
+        if (i == 0) tetris.fall_one_step_down();
     }
     
     return 0;

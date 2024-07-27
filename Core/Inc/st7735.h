@@ -258,7 +258,6 @@ void ST7735_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint
 void ST7735_InvertColors(bool invert);
 void ST7735_SetGamma(GammaDef gamma);
 void ST7735_SetScrollPos(int num_pixels);
-void ST7735_SetScrollDirection(int dir);
 
 #ifdef __cplusplus
 }
