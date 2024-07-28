@@ -65,12 +65,12 @@ void Vt100TerminalServer_t::set_background_color(ColorIndex_t vt100_color_index)
 
 void Vt100TerminalServer_t::hide_cursor()
 {
-    // not supported
+    m_cursor_enabled = false;
 }
 
 void Vt100TerminalServer_t::show_cursor()
 {
-    // not supported
+    m_cursor_enabled = true;
 }
 
 void Vt100TerminalServer_t::scroll(int num_lines)
@@ -117,6 +117,7 @@ void Vt100TerminalServer_t::reset()
     cursor_home();
     set_text_color(DEFAULT_TEXT_COLOR_INDEX);
     set_background_color(DEFAULT_BACKGROUND_COLOR_INDEX);
+    show_cursor();
 }
 
 void Vt100TerminalServer_t::handle_escape_sequence_end(char c)
@@ -190,6 +191,10 @@ void Vt100TerminalServer_t::handle_ascii(char c)
 {
     if (c == '\n')
     {
+        if (m_cursor_enabled)
+        {
+            print_char(' ');
+        }
         m_x = START_X_POS;
         if (m_y == m_height)
         {
@@ -201,13 +206,25 @@ void Vt100TerminalServer_t::handle_ascii(char c)
     {
         if (m_x > START_X_POS)
         {
+            if (m_cursor_enabled)
+            {
+                print_char(' ');
+            }
             m_x--;
+            if (m_cursor_enabled)
+            {
+                print_char('_');
+            }
         }
     }
     else
     {
         print_char(c);
         m_x++;
+        if (m_cursor_enabled)
+        {
+            print_char('_');
+        }
     }
 }
 

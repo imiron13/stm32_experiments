@@ -14,6 +14,7 @@ class TetrisGame_t
 		//LADDER,
 		PIRAMYD,
 		CORNER,
+		CORNER2,
 		NUM_FIGURES
 	};
 
@@ -166,7 +167,27 @@ const uint8_t TetrisGame_t<WIDTH, HEIGHT>::s_figures_bitmap[TetrisGame_t<WIDTH, 
 		  0b0000,
 		  0b0100,
 		  0b0111 },
-	}
+	},
+
+    /* CORNER 2 */
+    {
+        { 0b0000,
+          0b0010,
+          0b0010,
+          0b0011 },
+        { 0b0000,
+          0b0001,
+          0b0111,
+          0b0000 },
+        { 0b1100,
+          0b0100,
+          0b0100,
+          0b0000 },
+        { 0b0000,
+          0b0000,
+          0b0111,
+          0b0100 },
+    }
 };
 
 template<int WIDTH, int HEIGHT>

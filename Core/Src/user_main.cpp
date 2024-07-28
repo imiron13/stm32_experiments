@@ -12,6 +12,7 @@
 #include "st7735_vt100.h"
 #include "utils.h"
 #include "tetris.h"
+#include "menu.h"
 
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
@@ -149,6 +150,50 @@ bool shell_cmd_clear_screen(FILE *f, ShellCmd_t *cmd, const char *s)
     return true;
 }
 
+bool shell_cmd_heap_test(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    int arg1 = cmd->get_int_arg(s, 1);
+    void *p = malloc(arg1);
+    if (p)
+    {
+        fprintf(f, "Success\n");
+        free(p);
+        return true;
+    }
+    else
+    {
+        fprintf(f, "Failed to allocate heap memory\n");
+        return false;
+    }
+}
+
+MenuItem_t menu_items[] = {
+        { MENU_ITEM_TYPE_SUB_MENU, "Top", 0, NULL },
+        { MENU_ITEM_TYPE_BOOL, "Enable feature1", 0, &menu_items[0] },
+        { MENU_ITEM_TYPE_INT, "Volume", 50, &menu_items[0] },
+        { MENU_ITEM_TYPE_SUB_MENU, "Misc", 0, &menu_items[0] },
+        { MENU_ITEM_TYPE_SELECT, "ADC mode", 2, &menu_items[3] },
+};
+
+Menu_t menu;
+
+bool shell_cmd_menu_test(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    menu.set_device(f);
+    menu.set_menu_items(menu_items, sizeof(menu_items) / sizeof(menu_items[0]));
+    fprintf(f, "Menu test\n");
+    menu.reset();
+
+    bool quit = false;
+    while (!quit)
+    {
+        quit = menu.run_ui();
+        HAL_Delay(200);
+    }
+    fprintf(f, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME VT100_SHOW_CURSOR);
+    return true;
+}
+
 int user_main()
 {
     st7735_vt100.init(Font_7x10);
@@ -164,6 +209,8 @@ int user_main()
     shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
     shell.add_command(ShellCmd_t("tetris", "Tetris!", shell_cmd_tetris));
     shell.add_command(ShellCmd_t("cls", "Clear screen", shell_cmd_clear_screen));
+    shell.add_command(ShellCmd_t("heap", "Heap test", shell_cmd_heap_test));
+    shell.add_command(ShellCmd_t("menu", "Menu test", shell_cmd_menu_test));
 
     fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from ST7735\n");
     fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from UART1\n");

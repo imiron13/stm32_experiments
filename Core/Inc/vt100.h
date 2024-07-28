@@ -41,6 +41,7 @@
 #define VT100_CURSOR_HOME   "\e[H"
 #define VT100_HIDE_CURSOR   "\e[?25l"
 #define VT100_SHOW_CURSOR   "\e[?25h"
+#define VT100_SET_YX        "\e[%d;%dH"
 
 union RgbColor_t
 {
@@ -125,6 +126,7 @@ protected:
     int m_y;
     RawColor_t m_raw_text_color;
     RawColor_t m_raw_bg_color;
+    bool m_cursor_enabled;
 
     cookie_read_function_t *m_read_func;
     void *m_read_cookie;
