@@ -233,7 +233,11 @@ void Shell_t::handle_line()
     }
     else
     {
-        handle_command(cmd);
+        bool is_success = handle_command(cmd);
+        if (!is_success)
+        {
+            fprintf(m_device, "Command failed\n");
+        }
     }
     print_prompt();
     line_buf_pos = 0;

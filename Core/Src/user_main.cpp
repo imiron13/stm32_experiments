@@ -19,6 +19,7 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim2;
 extern DMA_HandleTypeDef hdma_tim2_up;
+extern RTC_HandleTypeDef hrtc;
 
 Shell_t shell;
 St7735_Vt100_t st7735_vt100;
@@ -239,6 +240,19 @@ bool shell_cmd_sd_card_write(FILE *f, ShellCmd_t *cmd, const char *s)
     }
 }
 
+bool shell_cmd_time_get(FILE *f, ShellCmd_t *cmd, const char *s) {
+    RTC_TimeTypeDef time;
+    HAL_StatusTypeDef res = HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
+    if (res != HAL_OK) return false;
+    fprintf(f, "Time: %02d:%02d:%02d\n", time.Hours, time.Minutes, time.Seconds);
+
+    RTC_DateTypeDef date;
+    res = HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
+    if (res != HAL_OK) return false;
+    fprintf(f, "Date: %02d/%02d/20%02d\n", date.Date, date.Month, date.Year);
+    return true;
+}
+
 int user_main()
 {
     st7735_vt100.init(Font_7x10);
@@ -258,6 +272,7 @@ int user_main()
     shell.add_command(ShellCmd_t("menu", "Menu test", shell_cmd_menu_test));
     shell.add_command(ShellCmd_t("sdrd", "SD card read", shell_cmd_sd_card_read));
     shell.add_command(ShellCmd_t("sdwr", "SD card write", shell_cmd_sd_card_write));
+    shell.add_command(ShellCmd_t("time", "", shell_cmd_time_get));
 
     fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from ST7735\n");
     fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from UART1\n");
