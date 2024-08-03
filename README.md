@@ -91,3 +91,11 @@ A demonstration of the features described above. Implemented on stdio input/outp
         HAL_Delay(tetris.get_ui_update_period_ms());
     }
 </pre>
+
+## Demo images
+<img src="Docs/Demo/stm32_experiments_uart_shell_1.png" width="600">
+<img src="Docs/Demo/stm32_experiments_uart_menu.png" width="600">
+<img src="Docs/Demo/stm32_experiments_uart_tetris.png" width="600">
+<img src="Docs/Demo/stm32_experiments_lcd_shell.jpg" width="400">
+<img src="Docs/Demo/stm32_experiments_lcd_menu.jpg" width="400">
+<img src="Docs/Demo/stm32_experiments_lcd_tetris.jpg" width="400">
