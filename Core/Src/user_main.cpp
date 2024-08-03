@@ -253,15 +253,15 @@ bool shell_cmd_time_get(FILE *f, ShellCmd_t *cmd, const char *s) {
     return true;
 }
 
-int user_main()
+bool shell_cmd_reset(FILE *f, ShellCmd_t *cmd, const char *s) {
+    typedef void (*ResetFunc_t)();
+    ResetFunc_t reset_func = *(ResetFunc_t*)0x4;
+    reset_func();
+    return false;
+}
+
+void init_shell_commands()
 {
-    st7735_vt100.init(Font_7x10);
-
-    fuart1 = uart_fopen(&huart1);
-    fuart2 = uart_fopen(&huart2);
-    fst7735 = st7735_vt100.fopen(uart_read, &huart1);
-    stdout = fst7735;
-
     shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
     shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
     shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
@@ -272,21 +272,50 @@ int user_main()
     shell.add_command(ShellCmd_t("menu", "Menu test", shell_cmd_menu_test));
     shell.add_command(ShellCmd_t("sdrd", "SD card read", shell_cmd_sd_card_read));
     shell.add_command(ShellCmd_t("sdwr", "SD card write", shell_cmd_sd_card_write));
-    shell.add_command(ShellCmd_t("time", "", shell_cmd_time_get));
+    shell.add_command(ShellCmd_t("time", "Get current date/time", shell_cmd_time_get));
+    shell.add_command(ShellCmd_t("reset", "Soft reset", shell_cmd_reset));
+}
 
-    fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from ST7735\n");
-    fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from UART1\n");
-    fprintf(fuart2, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from UART2\n");
-    printf("Hello from stdout\n");
+void deselect_all_devices()
+{
+    SDCARD_Unselect();
+    ST7735_Unselect();
+}
 
-    const char *str_welcome = "\nWelcome to the STM32 Experiments Demo FW\n";
-    fprintf(fst7735, str_welcome);
-    fprintf(fuart2, str_welcome);
+void init_serial()
+{
+    fuart1 = uart_fopen(&huart1);
+    fuart2 = uart_fopen(&huart2);
+    stdout = fuart2;
+    fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "UART1 init...done\n");
+    fprintf(fuart2, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "UART2 init...done\n");
+}
 
+
+int user_main()
+{
+    deselect_all_devices();
+
+    init_serial();
+
+    printf("SD card init...");
     SDCARD_Init();
     uint32_t sd_num_blocks = 0;
     SDCARD_GetBlocksNumber(&sd_num_blocks);
-    fprintf(fst7735, "SD card init done. Size = %d KB\n", (int)sd_num_blocks / 2);
+    printf("done, size = %d KB\n", (int)sd_num_blocks / 2);
+
+    printf("ST7735 LCD init...");
+    st7735_vt100.init(Font_7x10);
+    fst7735 = st7735_vt100.fopen(uart_read, &huart1);
+    fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME);
+    printf("done\n");
+
+    const char *str_welcome = "\nWelcome to the STM32 Experiments Demo FW\n";
+    fprintf(fst7735, str_welcome);
+    fprintf(fuart1, str_welcome);
+    fprintf(fuart2, str_welcome);
+
+    init_shell_commands();
 
     shell.set_device(fst7735);
     shell.print_prompt();
