@@ -10,6 +10,7 @@
 #include "st7735.h"
 #include "vt100.h"
 #include "st7735_vt100.h"
+#include "sdcard.h"
 #include "utils.h"
 #include "tetris.h"
 #include "menu.h"
@@ -168,7 +169,7 @@ bool shell_cmd_heap_test(FILE *f, ShellCmd_t *cmd, const char *s)
 }
 
 MenuItem_t menu_items[] = {
-        { MENU_ITEM_TYPE_SUB_MENU, "Top", 0, NULL },
+        { MENU_ITEM_TYPE_SUB_MENU, "=== Config Menu ===", 0, NULL },
         { MENU_ITEM_TYPE_BOOL, "Enable feature1", 0, &menu_items[0] },
         { MENU_ITEM_TYPE_INT, "Volume", 50, &menu_items[0] },
         { MENU_ITEM_TYPE_SUB_MENU, "Misc", 0, &menu_items[0] },
@@ -194,6 +195,50 @@ bool shell_cmd_menu_test(FILE *f, ShellCmd_t *cmd, const char *s)
     return true;
 }
 
+static const uint32_t SD_CARD_BLOCK_SIZE_IN_BYTES = 512;
+uint8_t sd_card_buf[SD_CARD_BLOCK_SIZE_IN_BYTES];
+
+bool shell_cmd_sd_card_read(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    int blk = cmd->get_int_arg(s, 1);
+    int num_bytes = cmd->get_int_arg(s, 2);
+    int res = SDCARD_ReadSingleBlock(blk, sd_card_buf);
+    if (res < 0)
+    {
+        fprintf(f, "Error reading SD card block %d\n", blk);
+        return false;
+    }
+    else
+    {
+        for (int i = 0; i < num_bytes; i++)
+        {
+            fprintf(f, "%02X ", sd_card_buf[i]);
+            if ((i % 8) == 7)
+            {
+                fprintf(f, "\n");
+            }
+        }
+        fprintf(f, "\n");
+        return true;
+    }
+}
+
+bool shell_cmd_sd_card_write(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    int blk = cmd->get_int_arg(s, 1);
+    int res = SDCARD_WriteSingleBlock(blk, sd_card_buf);
+    if (res < 0)
+    {
+        fprintf(f, "Error writing SD card block %d\n", blk);
+        return false;
+    }
+    else
+    {
+        fprintf(f, "Successfully written to SD card block %d\n", blk);
+        return true;
+    }
+}
+
 int user_main()
 {
     st7735_vt100.init(Font_7x10);
@@ -211,6 +256,8 @@ int user_main()
     shell.add_command(ShellCmd_t("cls", "Clear screen", shell_cmd_clear_screen));
     shell.add_command(ShellCmd_t("heap", "Heap test", shell_cmd_heap_test));
     shell.add_command(ShellCmd_t("menu", "Menu test", shell_cmd_menu_test));
+    shell.add_command(ShellCmd_t("sdrd", "SD card read", shell_cmd_sd_card_read));
+    shell.add_command(ShellCmd_t("sdwr", "SD card write", shell_cmd_sd_card_write));
 
     fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from ST7735\n");
     fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "Hello from UART1\n");
@@ -220,6 +267,12 @@ int user_main()
     const char *str_welcome = "\nWelcome to the STM32 Experiments Demo FW\n";
     fprintf(fst7735, str_welcome);
     fprintf(fuart2, str_welcome);
+
+    SDCARD_Init();
+    uint32_t sd_num_blocks = 0;
+    SDCARD_GetBlocksNumber(&sd_num_blocks);
+    fprintf(fst7735, "SD card init done. Size = %d KB\n", (int)sd_num_blocks / 2);
+
     shell.set_device(fst7735);
     shell.print_prompt();
     shell.set_device(fuart2);

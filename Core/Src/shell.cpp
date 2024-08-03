@@ -192,10 +192,14 @@ bool Shell_t::handle_char(char c)
         }
         return false;
     }
-    else if (line_buf_pos < MAX_STR_SIZE - 2 && ((c >= 32 && c < 127) || (c == 0x1B)))
+    else if (line_buf_pos < MAX_STR_SIZE - 2 && c >= 32 && c < 127)
     {
         line_buf[line_buf_pos] = c;
         line_buf_pos++;
+        print_echo(c);
+    }
+    else if (c == 0x1B)
+    {
         print_echo(c);
     }
     return false;

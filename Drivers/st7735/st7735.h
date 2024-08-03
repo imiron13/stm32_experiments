@@ -17,10 +17,11 @@
 #define ST7735_SPI_PORT hspi1
 extern SPI_HandleTypeDef ST7735_SPI_PORT;
 
+#define ST7735_HARDWARE_CS_CONTROL  (1)
 #define ST7735_RES_Pin       GPIO_PIN_0
 #define ST7735_RES_GPIO_Port GPIOB
-#define ST7735_CS_Pin        GPIO_PIN_1
-#define ST7735_CS_GPIO_Port  GPIOB
+#define ST7735_CS_Pin        GPIO_PIN_4
+#define ST7735_CS_GPIO_Port  GPIOA
 #define ST7735_DC_Pin        GPIO_PIN_10
 #define ST7735_DC_GPIO_Port  GPIOB
 

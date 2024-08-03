@@ -86,11 +86,15 @@ static const uint8_t
       100 };                  //     100 ms delay
 
 static void ST7735_Select() {
+#if (ST7735_HARDWARE_CS_CONTROL == 0)
     HAL_GPIO_WritePin(ST7735_CS_GPIO_Port, ST7735_CS_Pin, GPIO_PIN_RESET);
+#endif
 }
 
 void ST7735_Unselect() {
+#if (ST7735_HARDWARE_CS_CONTROL == 0)
     HAL_GPIO_WritePin(ST7735_CS_GPIO_Port, ST7735_CS_Pin, GPIO_PIN_SET);
+#endif
 }
 
 static void ST7735_Reset() {
@@ -175,7 +179,7 @@ void ST7735_DrawPixel(uint16_t x, uint16_t y, uint16_t color) {
 
 void ST7735_WriteChar(uint16_t x, uint16_t y, char ch, FontDef font, uint16_t color, uint16_t bgcolor) {
     uint32_t i, b, j;
-
+    ST7735_Select();
     int x1 = x + font.width - 1;
     int y1 = y + font.height - 1;
     int font_width_truncated = font.width;
@@ -206,6 +210,7 @@ void ST7735_WriteChar(uint16_t x, uint16_t y, char ch, FontDef font, uint16_t co
             }
         }
     }
+    ST7735_Unselect();
 }
 
 /*

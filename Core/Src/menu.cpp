@@ -191,5 +191,5 @@ void Menu_t::draw()
 
 void Menu_t::draw_menu_item(MenuItem_t *item, int x, int y, bool is_selected)
 {
-    fprintf(m_device, VT100_SET_YX "%s%s", y, x, s_color_settings[is_selected], item->name);
+    fprintf(m_device, VT100_SET_YX "%s%s", y, x, s_color_settings[is_selected], (item == m_cur_sub_menu && m_cur_sub_menu != m_menu_items) ? ".." : item->name);
 }
