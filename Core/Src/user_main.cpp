@@ -27,6 +27,7 @@ St7735_Vt100_t st7735_vt100;
 FILE *fuart1;
 FILE *fuart2;
 FILE *fst7735;
+FATFS fs;
 TetrisGame_t<16, 16> tetris;
 
 bool shell_cmd_sum_handler(FILE *f, ShellCmd_t *cmd, const char *s)
@@ -266,27 +267,6 @@ bool shell_cmd_reset(FILE *f, ShellCmd_t *cmd, const char *s) {
     return false;
 }
 
-void init_shell()
-{
-    shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
-    shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
-    shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
-    shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
-    shell.add_command(ShellCmd_t("tetris", "Tetris!", shell_cmd_tetris));
-    shell.add_command(ShellCmd_t("cls", "Clear screen", shell_cmd_clear_screen));
-    shell.add_command(ShellCmd_t("heap", "Heap test", shell_cmd_heap_test));
-    shell.add_command(ShellCmd_t("menu", "Menu test", shell_cmd_menu_test));
-    shell.add_command(ShellCmd_t("sdrd", "SD card read", shell_cmd_sd_card_read));
-    shell.add_command(ShellCmd_t("sdwr", "SD card write", shell_cmd_sd_card_write));
-    shell.add_command(ShellCmd_t("time", "Get current date/time", shell_cmd_time_get));
-    shell.add_command(ShellCmd_t("reset", "Soft reset", shell_cmd_reset));
-
-    shell.set_device(fst7735);
-    shell.print_prompt();
-    shell.set_device(fuart2);
-    shell.print_prompt();
-}
-
 void deselect_all_devices()
 {
     SDCARD_Unselect();
@@ -309,7 +289,6 @@ void init_serial()
 bool init_fatfs()
 {
     printf("FATFS init...");
-    FATFS fs;
     FRESULT res;
 
     // mount the default drive
@@ -331,21 +310,33 @@ bool init_fatfs()
     uint32_t totalBlocks = (fs.n_fatent - 2) * fs.csize;
     uint32_t freeBlocks = freeClust * fs.csize;
     printf("done\n");
-    printf("Total blocks: %lu (%lu Mb), free blocks: %lu (%lu Mb)\r\n",
-                totalBlocks, totalBlocks / 2000,
-                freeBlocks, freeBlocks / 2000);
+    printf("Total blocks: %lu (%lu MiB), free blocks: %lu (%lu MiB), cluster=%lu B\r\n",
+                totalBlocks, totalBlocks / 2048,
+                freeBlocks, freeBlocks / 2048,
+                fs.csize * SD_CARD_BLOCK_SIZE_IN_BYTES);
     return true;
 }
 
-void init_storage()
+bool init_storage()
 {
     printf("SD card init...");
-    SDCARD_Init();
+    int result = SDCARD_Init();
+    if (result < 0)
+    {
+        printf("FAIL\n");
+        return false;
+    }
     uint32_t sd_num_blocks = 0;
-    SDCARD_GetBlocksNumber(&sd_num_blocks);
+    result = SDCARD_GetBlocksNumber(&sd_num_blocks);
+    if (result < 0)
+    {
+        printf("FAIL\n");
+        return false;
+    }
+
     printf("done, size = %d MiB\n", (int)sd_num_blocks / 2 / 1024);
 
-    init_fatfs();
+    return init_fatfs();
 }
 
 void init_display()
@@ -355,6 +346,256 @@ void init_display()
     fst7735 = st7735_vt100.fopen(uart_read, &huart1);
     fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME);
     printf("done\n");
+}
+
+bool shell_cmd_fatfs_test(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+
+    DIR dir;
+    int res = f_opendir(&dir, "/");
+    if(res != FR_OK) {
+       fprintf(f, "f_opendir() failed, res = %d\n", res);
+        return false;
+    }
+
+    FILINFO fileInfo;
+    uint32_t totalFiles = 0;
+    uint32_t totalDirs = 0;
+    fprintf(f, "--------\r\nRoot directory:\n");
+    for(;;) {
+       res = f_readdir(&dir, &fileInfo);
+       if((res != FR_OK) || (fileInfo.fname[0] == '\0')) {
+           break;
+       }
+
+       if(fileInfo.fattrib & AM_DIR) {
+           fprintf(f, "  DIR  %s\n", fileInfo.fname);
+           totalDirs++;
+       } else {
+           fprintf(f, "  FILE %s\n", fileInfo.fname);
+           totalFiles++;
+       }
+    }
+    return true;
+}
+
+char current_folder[FF_MAX_LFN] = "/";
+
+bool shell_cmd_ls(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    DIR dir;
+    int res = f_opendir(&dir, current_folder);
+    if(res != FR_OK) {
+       fprintf(f, "f_opendir() failed, res = %d\n", res);
+        return false;
+    }
+
+    FILINFO fileInfo;
+    uint32_t totalFiles = 0;
+    uint32_t totalDirs = 0;
+    for(;;) {
+       res = f_readdir(&dir, &fileInfo);
+       if((res != FR_OK) || (fileInfo.fname[0] == '\0')) {
+           break;
+       }
+
+       if(fileInfo.fattrib & AM_DIR) {
+           fprintf(f, "  DIR  %s\n", fileInfo.fname);
+           totalDirs++;
+       } else {
+           fprintf(f, "  FILE %s\n", fileInfo.fname);
+           totalFiles++;
+       }
+    }
+
+    return true;
+}
+
+bool shell_cmd_pwd(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    fprintf(f, "%s\n", current_folder);
+    return true;
+}
+
+bool shell_cmd_cd(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    bool is_success = true;
+    DIR dir;
+    const char *folder_arg = cmd->get_str_arg(s, 1);
+    char *new_folder = (char*)malloc(FF_MAX_LFN);
+    if (strcmp(folder_arg, "..") == 0)
+    {
+        int i = 0;
+        int slash_pos = 0;
+        while (current_folder[i] != 0)
+        {
+            if (current_folder[i] == '/')
+            {
+                slash_pos = i;
+            }
+            i++;
+        }
+        current_folder[slash_pos] = 0;
+    }
+    else
+    {
+        if (folder_arg[0] != '/')
+        {
+            strcpy(new_folder, current_folder);
+            strcat(new_folder, "/");
+        }
+
+        strcat(new_folder, folder_arg);
+        int res = f_opendir(&dir, new_folder);
+
+        if(res != FR_OK) {
+            fprintf(f, "Invalid path\n");
+            is_success = false;
+        }
+        else
+        {
+            strcpy(current_folder, new_folder);
+
+        }
+    }
+    free(new_folder);
+    return is_success;
+}
+
+int displayImage(const char* fname, FILE *f) {
+    fprintf(f, "Opening %s...\r\n", fname);
+    FIL file;
+    FRESULT res = f_open(&file, fname, FA_READ);
+    if(res != FR_OK) {
+        fprintf(f, "f_open() failed, res = %d\n", res);
+        return -1;
+    }
+
+    fprintf(f, "File opened, reading...\n");
+
+    unsigned int bytesRead;
+    uint8_t header[34];
+    res = f_read(&file, header, sizeof(header), &bytesRead);
+    if(res != FR_OK) {
+        fprintf(f, "f_read() failed, res = %d\n", res);
+        f_close(&file);
+        return -2;
+    }
+
+    if((header[0] != 0x42) || (header[1] != 0x4D)) {
+        fprintf(f, "Wrong BMP signature: 0x%02X 0x%02X\n",
+                    header[0], header[1]);
+        f_close(&file);
+        return -3;
+    }
+
+    uint32_t imageOffset = header[10] | (header[11] << 8) |
+                           (header[12] << 16) | (header[13] << 24);
+    uint32_t imageWidth  = header[18] | (header[19] << 8) |
+                           (header[20] << 16) | (header[21] << 24);
+    uint32_t imageHeight = header[22] | (header[23] << 8) |
+                           (header[24] << 16) | (header[25] << 24);
+    uint16_t imagePlanes = header[26] | (header[27] << 8);
+
+    uint16_t imageBitsPerPixel = header[28] | (header[29] << 8);
+    uint32_t imageCompression  = header[30] | (header[31] << 8) |
+                                 (header[32] << 16) |
+                                 (header[33] << 24);
+    fprintf(f,
+        "--- Image info ---\r\n"
+        "Pixels offset: %lu\r\n"
+        "WxH: %lux%lu\r\n"
+        "Planes: %d\r\n"
+        "Bits per pixel: %d\r\n"
+        "Compression: %lu\r\n"
+        "------------------\r\n",
+        imageOffset, imageWidth, imageHeight, imagePlanes,
+        imageBitsPerPixel, imageCompression);
+
+    if((imageWidth != ST7735_WIDTH) ||
+       (imageHeight != ST7735_HEIGHT))
+    {
+        fprintf(f, "Wrong BMP size, %dx%d expected\r\n",
+                    ST7735_WIDTH, ST7735_HEIGHT);
+        f_close(&file);
+        return -4;
+    }
+
+    if((imagePlanes != 1) || (imageBitsPerPixel != 24) ||
+       (imageCompression != 0))
+    {
+        fprintf(f, "Unsupported image format\r\n");
+        f_close(&file);
+        return -5;
+    }
+
+    res = f_lseek(&file, imageOffset);
+    if(res != FR_OK) {
+        fprintf(f, "f_lseek() failed, res = %d\r\n", res);
+        f_close(&file);
+        return -6;
+    }
+
+    // row size is aligned to 4 bytes
+    uint8_t imageRow[(ST7735_WIDTH * 3 + 3) & ~3];
+    for(uint32_t y = 0; y < imageHeight; y++) {
+        uint32_t rowIdx = 0;
+        res = f_read(&file, imageRow, sizeof(imageRow), &bytesRead);
+        if(res != FR_OK) {
+            fprintf(f, "f_read() failed, res = %d\r\n", res);
+            f_close(&file);
+            return -7;
+        }
+
+        for(uint32_t x = 0; x < imageWidth; x++) {
+            uint8_t b = imageRow[rowIdx++];
+            uint8_t g = imageRow[rowIdx++];
+            uint8_t r = imageRow[rowIdx++];
+            uint16_t color565 = ST7735_COLOR565(r, g, b);
+            ST7735_DrawPixel(x, imageHeight - y - 1, color565);
+        }
+    }
+
+    res = f_close(&file);
+    if(res != FR_OK) {
+        fprintf(f, "f_close() failed, res = %d\r\n", res);
+        return -8;
+    }
+
+    return 0;
+}
+
+bool shell_cmd_open_bmp(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    const char *bmp_file_name = cmd->get_str_arg(s, 1);
+
+    displayImage(bmp_file_name, f);
+    return true;
+}
+
+void init_shell()
+{
+    shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
+    shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
+    shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
+    shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
+    shell.add_command(ShellCmd_t("tetris", "Tetris!", shell_cmd_tetris));
+    shell.add_command(ShellCmd_t("cls", "Clear screen", shell_cmd_clear_screen));
+    shell.add_command(ShellCmd_t("heap", "Heap test", shell_cmd_heap_test));
+    shell.add_command(ShellCmd_t("menu", "Menu test", shell_cmd_menu_test));
+    shell.add_command(ShellCmd_t("sdrd", "SD card read", shell_cmd_sd_card_read));
+    shell.add_command(ShellCmd_t("sdwr", "SD card write", shell_cmd_sd_card_write));
+    shell.add_command(ShellCmd_t("time", "Get current date/time", shell_cmd_time_get));
+    shell.add_command(ShellCmd_t("reset", "Soft reset", shell_cmd_reset));
+    shell.add_command(ShellCmd_t("fatfs_test", "FATFS test", shell_cmd_fatfs_test));
+    shell.add_command(ShellCmd_t("ls", "Print conents of the current directory", shell_cmd_ls));
+    shell.add_command(ShellCmd_t("cd", "Change directory", shell_cmd_cd));
+    shell.add_command(ShellCmd_t("open_bmp", "Open BMP file", shell_cmd_open_bmp));
+
+    shell.set_device(fst7735);
+    shell.print_prompt();
+    shell.set_device(fuart2);
+    shell.print_prompt();
 }
 
 int user_main()
