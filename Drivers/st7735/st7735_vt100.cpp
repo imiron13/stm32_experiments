@@ -25,7 +25,7 @@ void St7735_Vt100_t::print_char(char c)
 St7735_Vt100_t::RawColor_t St7735_Vt100_t::rgb_to_raw_color(RgbColor_t rgb)
 {
     // 16 bits color mode: BIT [15:11] - B, BITS[10:5] - G, BITS[4:0] - R
-    return (((uint32_t)rgb.r >> 3) << 11) | (((uint32_t)rgb.g >> 2) << 5) | (rgb.b >> 3);
+    return ST7735_COLOR565(rgb.r, rgb.g, rgb.b);
 }
 
 void St7735_Vt100_t::scroll(int num_lines)

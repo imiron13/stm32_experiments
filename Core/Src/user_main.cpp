@@ -11,6 +11,7 @@
 #include "vt100.h"
 #include "st7735_vt100.h"
 #include "sdcard.h"
+#include "ff.h"
 #include "utils.h"
 #include "tetris.h"
 #include "menu.h"
@@ -245,12 +246,12 @@ bool print_time_date(FILE *f)
     RTC_TimeTypeDef time;
     HAL_StatusTypeDef res = HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
     if (res != HAL_OK) return false;
-    fprintf(f, "Time: %02d:%02d:%02d\n", time.Hours, time.Minutes, time.Seconds);
+    fprintf(f, "Time: %02d:%02d:%02d, ", time.Hours, time.Minutes, time.Seconds);
 
     RTC_DateTypeDef date;
     res = HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
     if (res != HAL_OK) return false;
-    fprintf(f, "Date: %02d/%02d/20%02d\n", date.Date, date.Month, date.Year);
+    fprintf(f, "date: %02d/%02d/20%02d\n", date.Date, date.Month, date.Year);
     return true;
 }
 
@@ -305,13 +306,46 @@ void init_serial()
     printf("SPI2 init...done, %lu KBits/s\n", HAL_RCC_GetPCLK1Freq() / 1000 / (2U << (hspi2.Init.BaudRatePrescaler >> SPI_CR1_BR_Pos)));
 }
 
+bool init_fatfs()
+{
+    printf("FATFS init...");
+    FATFS fs;
+    FRESULT res;
+
+    // mount the default drive
+    res = f_mount(&fs, "", 0);
+    if(res != FR_OK) {
+        printf("f_mount() failed, res = %d\r\n", res);
+        return false;
+    }
+
+    uint32_t freeClust;
+    FATFS* fs_ptr = &fs;
+    // Warning! This fills fs.n_fatent and fs.csize!
+    res = f_getfree("", &freeClust, &fs_ptr);
+    if(res != FR_OK) {
+        printf("f_getfree() failed, res = %d\r\n", res);
+        return false;
+    }
+
+    uint32_t totalBlocks = (fs.n_fatent - 2) * fs.csize;
+    uint32_t freeBlocks = freeClust * fs.csize;
+    printf("done\n");
+    printf("Total blocks: %lu (%lu Mb), free blocks: %lu (%lu Mb)\r\n",
+                totalBlocks, totalBlocks / 2000,
+                freeBlocks, freeBlocks / 2000);
+    return true;
+}
+
 void init_storage()
 {
     printf("SD card init...");
     SDCARD_Init();
     uint32_t sd_num_blocks = 0;
     SDCARD_GetBlocksNumber(&sd_num_blocks);
-    printf("done, size = %d KB\n", (int)sd_num_blocks / 2);
+    printf("done, size = %d MiB\n", (int)sd_num_blocks / 2 / 1024);
+
+    init_fatfs();
 }
 
 void init_display()
