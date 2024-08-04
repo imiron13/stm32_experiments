@@ -202,7 +202,15 @@ static void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
-
+  // Check if Data stored in BackUp register1: No Need to write it and then turn LED1
+  // Read the Back Up Register 1 Data
+    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) != 0xBEBE)
+    {
+       // Write Back Up Register 1 Data
+       HAL_PWR_EnableBkUpAccess();
+       // Writes a data in a RTC Backup data Register 1
+       HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0xBEBE);
+       HAL_PWR_DisableBkUpAccess();
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date
@@ -225,7 +233,11 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
+    }
+    else
+    {
 
+    }
   /* USER CODE END RTC_Init 2 */
 
 }

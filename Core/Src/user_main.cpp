@@ -240,7 +240,8 @@ bool shell_cmd_sd_card_write(FILE *f, ShellCmd_t *cmd, const char *s)
     }
 }
 
-bool shell_cmd_time_get(FILE *f, ShellCmd_t *cmd, const char *s) {
+bool print_time_date(FILE *f)
+{
     RTC_TimeTypeDef time;
     HAL_StatusTypeDef res = HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
     if (res != HAL_OK) return false;
@@ -253,6 +254,10 @@ bool shell_cmd_time_get(FILE *f, ShellCmd_t *cmd, const char *s) {
     return true;
 }
 
+bool shell_cmd_time_get(FILE *f, ShellCmd_t *cmd, const char *s) {
+    return print_time_date(f);
+}
+
 bool shell_cmd_reset(FILE *f, ShellCmd_t *cmd, const char *s) {
     typedef void (*ResetFunc_t)();
     ResetFunc_t reset_func = *(ResetFunc_t*)0x4;
@@ -260,7 +265,7 @@ bool shell_cmd_reset(FILE *f, ShellCmd_t *cmd, const char *s) {
     return false;
 }
 
-void init_shell_commands()
+void init_shell()
 {
     shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
     shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
@@ -274,6 +279,11 @@ void init_shell_commands()
     shell.add_command(ShellCmd_t("sdwr", "SD card write", shell_cmd_sd_card_write));
     shell.add_command(ShellCmd_t("time", "Get current date/time", shell_cmd_time_get));
     shell.add_command(ShellCmd_t("reset", "Soft reset", shell_cmd_reset));
+
+    shell.set_device(fst7735);
+    shell.print_prompt();
+    shell.set_device(fuart2);
+    shell.print_prompt();
 }
 
 void deselect_all_devices()
@@ -287,10 +297,31 @@ void init_serial()
     fuart1 = uart_fopen(&huart1);
     fuart2 = uart_fopen(&huart2);
     stdout = fuart2;
-    fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "UART1 init...done\n");
-    fprintf(fuart2, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME "UART2 init...done\n");
+    fprintf(fuart1, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME);
+    fprintf(fuart1, "UART1 init...done, baudrate=%lu\n", huart1.Init.BaudRate);
+    fprintf(fuart2, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME);
+    fprintf(fuart2, "UART2 init...done, baudrate=%lu\n", huart2.Init.BaudRate);
+    printf("SPI1 init...done, %lu KBits/s\n", HAL_RCC_GetPCLK2Freq() / 1000 / (2U << (hspi1.Init.BaudRatePrescaler >> SPI_CR1_BR_Pos)));
+    printf("SPI2 init...done, %lu KBits/s\n", HAL_RCC_GetPCLK1Freq() / 1000 / (2U << (hspi2.Init.BaudRatePrescaler >> SPI_CR1_BR_Pos)));
 }
 
+void init_storage()
+{
+    printf("SD card init...");
+    SDCARD_Init();
+    uint32_t sd_num_blocks = 0;
+    SDCARD_GetBlocksNumber(&sd_num_blocks);
+    printf("done, size = %d KB\n", (int)sd_num_blocks / 2);
+}
+
+void init_display()
+{
+    printf("ST7735 LCD init...");
+    st7735_vt100.init(Font_7x10);
+    fst7735 = st7735_vt100.fopen(uart_read, &huart1);
+    fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME);
+    printf("done\n");
+}
 
 int user_main()
 {
@@ -298,29 +329,18 @@ int user_main()
 
     init_serial();
 
-    printf("SD card init...");
-    SDCARD_Init();
-    uint32_t sd_num_blocks = 0;
-    SDCARD_GetBlocksNumber(&sd_num_blocks);
-    printf("done, size = %d KB\n", (int)sd_num_blocks / 2);
+    init_storage();
 
-    printf("ST7735 LCD init...");
-    st7735_vt100.init(Font_7x10);
-    fst7735 = st7735_vt100.fopen(uart_read, &huart1);
-    fprintf(fst7735, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME);
-    printf("done\n");
+    init_display();
+
+    print_time_date(stdout);
 
     const char *str_welcome = "\nWelcome to the STM32 Experiments Demo FW\n";
     fprintf(fst7735, str_welcome);
     fprintf(fuart1, str_welcome);
     fprintf(fuart2, str_welcome);
 
-    init_shell_commands();
-
-    shell.set_device(fst7735);
-    shell.print_prompt();
-    shell.set_device(fuart2);
-    shell.print_prompt();
+    init_shell();
 
     while (1)
     {
