@@ -245,6 +245,9 @@ extern "C" {
 #endif
 
 // call before initializing any SPI devices
+void ST7735_SetAddressWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1);
+void ST7735_WriteData(uint8_t* buff, size_t buff_size);
+void ST7735_Select();
 void ST7735_Unselect();
 
 void ST7735_Init(void);

@@ -463,6 +463,7 @@ bool shell_cmd_cd(FILE *f, ShellCmd_t *cmd, const char *s)
 }
 
 int displayImage(const char* fname, FILE *f) {
+#if 0
     fprintf(f, "Opening %s...\r\n", fname);
     FIL file;
     FRESULT res = f_open(&file, fname, FA_READ);
@@ -561,7 +562,7 @@ int displayImage(const char* fname, FILE *f) {
         fprintf(f, "f_close() failed, res = %d\r\n", res);
         return -8;
     }
-
+#endif
     return 0;
 }
 
@@ -570,6 +571,66 @@ bool shell_cmd_open_bmp(FILE *f, ShellCmd_t *cmd, const char *s)
     const char *bmp_file_name = cmd->get_str_arg(s, 1);
 
     displayImage(bmp_file_name, f);
+    return true;
+}
+
+bool shell_cmd_open_vid(FILE *f, ShellCmd_t *cmd, const char *s)
+{
+    const char *vid_file_name = cmd->get_str_arg(s, 1);
+    int frame_delay_ms = cmd->get_int_arg(s, 2);
+
+    fprintf(f, "Opening %s...\r\n", vid_file_name);
+    FIL file;
+    FRESULT res = f_open(&file, vid_file_name, FA_READ);
+    if(res != FR_OK) {
+        fprintf(f, "f_open() failed, res = %d\n", res);
+        return -1;
+    }
+
+    fprintf(f, "File opened, reading...\n");
+
+
+    const int FRAME_SIZE = 2 * ST7735_WIDTH * ST7735_HEIGHT;
+    const int CHUNK_SIZE = 2 * ST7735_WIDTH * 16;
+    const int NUM_CHUNKS_PER_FRAME = FRAME_SIZE / CHUNK_SIZE;
+    uint8_t *buf = (uint8_t*)malloc(CHUNK_SIZE);
+
+    ST7735_Select();
+    bool end = false;
+    while (!end)
+    {
+        ST7735_SetAddressWindow(0, 0, ST7735_WIDTH-1, ST7735_HEIGHT-1);
+        for (int chunk = 0; chunk < NUM_CHUNKS_PER_FRAME; chunk++)
+        {
+            unsigned bytesRead;
+            res = f_read(&file, buf, CHUNK_SIZE, &bytesRead);
+            if(res != FR_OK) {
+                fprintf(f, "Error %d\n", res);
+                end = 1;
+                break;
+            }
+            else if (bytesRead == 0)
+            {
+                fprintf(f, "End video\n");
+                end = 1;
+                break;
+            }
+            ST7735_WriteData(buf, CHUNK_SIZE);
+        }
+        HAL_Delay(frame_delay_ms);
+        int c = fgetc(f);
+        if (c =='q')
+        {
+            end = 1;
+        }
+    }
+    ST7735_Unselect();
+    free(buf);
+    res = f_close(&file);
+    if(res != FR_OK) {
+        fprintf(f, "f_close() failed, res = %d\n", res);
+        return -8;
+    }
     return true;
 }
 
@@ -590,7 +651,8 @@ void init_shell()
     shell.add_command(ShellCmd_t("fatfs_test", "FATFS test", shell_cmd_fatfs_test));
     shell.add_command(ShellCmd_t("ls", "Print conents of the current directory", shell_cmd_ls));
     shell.add_command(ShellCmd_t("cd", "Change directory", shell_cmd_cd));
-    shell.add_command(ShellCmd_t("open_bmp", "Open BMP file", shell_cmd_open_bmp));
+    shell.add_command(ShellCmd_t("openbmp", "Open BMP file", shell_cmd_open_bmp));
+    shell.add_command(ShellCmd_t("openvid", "Open VID file", shell_cmd_open_vid));
 
     shell.set_device(fst7735);
     shell.print_prompt();
