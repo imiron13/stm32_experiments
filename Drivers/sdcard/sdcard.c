@@ -59,6 +59,26 @@ static int SDCARD_WaitDataToken(uint8_t token) {
     return 0;
 }
 
+int SDCARD_ReadBytes512(uint8_t* buff) __attribute((optimize("unroll-loops")));
+int SDCARD_ReadBytes512(uint8_t* buff)
+{
+    uint8_t dummy = 0xFF;
+    extern DMA_HandleTypeDef hdma_spi2_tx;
+    extern DMA_HandleTypeDef hdma_spi2_rx;
+
+    HAL_StatusTypeDef status;
+    status = HAL_DMA_Start(&hdma_spi2_rx, (uint32_t)&SDCARD_SPI_PORT.Instance->DR, (uint32_t)buff, 512);
+    SET_BIT(SDCARD_SPI_PORT.Instance->CR2, SPI_CR2_RXDMAEN);
+
+    status = HAL_DMA_Start(&hdma_spi2_tx, (uint32_t)&dummy, (uint32_t)&SDCARD_SPI_PORT.Instance->DR, 512);
+    SET_BIT(SDCARD_SPI_PORT.Instance->CR2, SPI_CR2_TXDMAEN);
+
+    status  = HAL_DMA_PollForTransfer(&hdma_spi2_tx, HAL_DMA_FULL_TRANSFER, HAL_MAX_DELAY);
+    status  = HAL_DMA_PollForTransfer(&hdma_spi2_rx, HAL_DMA_FULL_TRANSFER, HAL_MAX_DELAY);
+
+    return 0;
+}
+
 static int SDCARD_ReadBytes(uint8_t* buff, size_t buff_size) {
     // make sure FF is transmitted during receive
     uint8_t tx = 0xFF;
@@ -173,7 +193,7 @@ int SDCARD_Init() {
 
         {
             static const uint8_t cmd[] =
-                { 0x40 | 0x37 /* CMD55 */, 0x00, 0x00, 0x00, 0x00 /* ARG */, (0x7F << 1) | 1 /* CRC7 + end bit */ };
+                { 0x40 | 0x37 /* CMD55 */, 0x00, 0x00, 0x00, 0x00 /* ARG */, (0x32 << 1) | 1 /* CRC7 + end bit */ };
             HAL_SPI_Transmit(&SDCARD_SPI_PORT, (uint8_t*)cmd, sizeof(cmd), HAL_MAX_DELAY);
         }
 
@@ -189,7 +209,7 @@ int SDCARD_Init() {
 
         {
             static const uint8_t cmd[] =
-                { 0x40 | 0x29 /* ACMD41 */, 0x40, 0x00, 0x00, 0x00 /* ARG */, (0x7F << 1) | 1 /* CRC7 + end bit */ };
+                { 0x40 | 0x29 /* ACMD41 */, 0x40, 0x00, 0x00, 0x00 /* ARG */, (0x3B << 1) | 1 /* CRC7 + end bit */ };
             HAL_SPI_Transmit(&SDCARD_SPI_PORT, (uint8_t*)cmd, sizeof(cmd), HAL_MAX_DELAY);
         }
 
@@ -218,7 +238,7 @@ int SDCARD_Init() {
 
     {
         static const uint8_t cmd[] =
-            { 0x40 | 0x3A /* CMD58 */, 0x00, 0x00, 0x00, 0x00 /* ARG */, (0x7F << 1) | 1 /* CRC7 + end bit */ };
+            { 0x40 | 0x3A /* CMD58 */, 0x00, 0x00, 0x00, 0x00 /* ARG */, (0x7E << 1) | 1 /* CRC7 + end bit */ };
         HAL_SPI_Transmit(&SDCARD_SPI_PORT, (uint8_t*)cmd, sizeof(cmd), HAL_MAX_DELAY);
     }
 
@@ -259,7 +279,7 @@ int SDCARD_GetBlocksNumber(uint32_t* num) {
     /* CMD9 (SEND_CSD) command */
     {
         static const uint8_t cmd[] =
-            { 0x40 | 0x09 /* CMD9 */, 0x00, 0x00, 0x00, 0x00 /* ARG */, (0x7F << 1) | 1 /* CRC7 + end bit */ };
+            { 0x40 | 0x09 /* CMD9 */, 0x00, 0x00, 0x00, 0x00 /* ARG */, (0x57 << 1) | 1 /* CRC7 + end bit */ };
         HAL_SPI_Transmit(&SDCARD_SPI_PORT, (uint8_t*)cmd, sizeof(cmd), HAL_MAX_DELAY);
     }
 
@@ -437,7 +457,7 @@ int SDCARD_ReadData(uint8_t* buff) {
         return -1;
     }
 
-    if(SDCARD_ReadBytes(buff, 512) < 0) {
+    if (SDCARD_ReadBytes512(buff)) {
         SDCARD_Unselect();
         return -2;
     }

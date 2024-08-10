@@ -4,9 +4,9 @@
 
 #include "stm32f1xx_hal.h"
 
-#define SDCARD_HARDWARE_CS_CONTROL      (1)
+#define SDCARD_HARDWARE_CS_CONTROL      (0)
 #define SDCARD_SPI_PORT      hspi2
-#define SDCARD_CS_Pin        GPIO_PIN_1 // Arduino shield: D4
+#define SDCARD_CS_Pin        GPIO_PIN_12 // Arduino shield: D4
 #define SDCARD_CS_GPIO_Port  GPIOB
 
 extern SPI_HandleTypeDef SDCARD_SPI_PORT;
@@ -22,6 +22,7 @@ void SDCARD_Unselect();
 
 int SDCARD_Init();
 int SDCARD_GetBlocksNumber(uint32_t* num);
+int SDCARD_GetAuSize(uint32_t* num);
 int SDCARD_ReadSingleBlock(uint32_t blockNum, uint8_t* buff); // sizeof(buff) == 512!
 int SDCARD_WriteSingleBlock(uint32_t blockNum, const uint8_t* buff); // sizeof(buff) == 512!
 

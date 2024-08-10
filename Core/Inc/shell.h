@@ -63,5 +63,6 @@ public:
     void print_prompt();
 
     bool handle_char(char c);
+    void handle_line(const char *s);
     void run();
 };

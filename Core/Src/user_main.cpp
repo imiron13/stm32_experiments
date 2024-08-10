@@ -16,11 +16,24 @@
 #include "tetris.h"
 #include "menu.h"
 
+#define EN_GPIO_CONTROL_SHELL_CMD               (0)
+#define EN_GPIO_TEST                            (0)
+#define EN_SD_CARD_READ_WRITE_SHELL_CMDS        (0)
+#define EN_FATFS_TEST                           (0)
+#define EN_OPEN_BMP                             (0)
+#define EN_MENU                                 (0)
+#define EN_TETRIS                               (0)
+#define EN_FS_SHELL_COMMANDS                    (1)
+#define EN_OPEN_VID                             (1)
+
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim2;
 extern DMA_HandleTypeDef hdma_tim2_up;
 extern RTC_HandleTypeDef hrtc;
+extern DMA_HandleTypeDef hdma_spi1_tx;
+extern DMA_HandleTypeDef hdma_spi2_tx;
+extern DMA_HandleTypeDef hdma_spi2_rx;
 
 Shell_t shell;
 St7735_Vt100_t st7735_vt100;
@@ -28,16 +41,8 @@ FILE *fuart1;
 FILE *fuart2;
 FILE *fst7735;
 FATFS fs;
-TetrisGame_t<16, 16> tetris;
 
-bool shell_cmd_sum_handler(FILE *f, ShellCmd_t *cmd, const char *s)
-{
-    int arg1 = cmd->get_int_arg(s, 1);
-    int arg2 = cmd->get_int_arg(s, 2);
-    fprintf(f, "Sum of %d and %d is %d\n", arg1, arg2, arg1 + arg2);
-    return true;
-}
-
+#if (EN_GPIO_CONTROL_SHELL_CMD == 1)
 bool shell_cmd_gpio(FILE *f, ShellCmd_t *cmd, const char *s)
 {
     const int NUM_GPIO_PORTS_SUPPORTED = 5;
@@ -87,7 +92,9 @@ bool shell_cmd_gpio(FILE *f, ShellCmd_t *cmd, const char *s)
     fprintf(f, "Pin %s is set to %c\n", pin_str, op == 0 ? '0' : '1');
     return true;
 }
+#endif
 
+#if (EN_GPIO_TEST == 1)
 bool shell_cmd_gpio_speed_test(FILE *f, ShellCmd_t *cmd, const char *s) __attribute((optimize("unroll-loops")));
 bool shell_cmd_gpio_speed_test(FILE *f, ShellCmd_t *cmd, const char *s)
 {
@@ -131,6 +138,10 @@ bool shell_cmd_gpio_dma_test(FILE *f, ShellCmd_t *cmd, const char *s)
     TIM2->DIER |= (1 << 8);   // set UDE bit (update dma request enable)
     return true;
 }
+#endif
+
+#if (EN_TETRIS == 1)
+TetrisGame_t<16, 16> tetris;
 
 bool shell_cmd_tetris(FILE *f, ShellCmd_t *cmd, const char *s)
 {
@@ -147,6 +158,7 @@ bool shell_cmd_tetris(FILE *f, ShellCmd_t *cmd, const char *s)
     fprintf(f, "Thanks for playing!\n");
     return true;
 }
+#endif
 
 bool shell_cmd_clear_screen(FILE *f, ShellCmd_t *cmd, const char *s)
 {
@@ -171,6 +183,7 @@ bool shell_cmd_heap_test(FILE *f, ShellCmd_t *cmd, const char *s)
     }
 }
 
+#if (EN_MENU == 1)
 MenuItem_t menu_items[] = {
         { MENU_ITEM_TYPE_SUB_MENU, "=== Config Menu ===", 0, NULL },
         { MENU_ITEM_TYPE_BOOL, "Enable feature1", 0, &menu_items[0] },
@@ -197,8 +210,11 @@ bool shell_cmd_menu_test(FILE *f, ShellCmd_t *cmd, const char *s)
     fprintf(f, BG_BLACK FG_BRIGHT_WHITE VT100_CLEAR_SCREEN VT100_CURSOR_HOME VT100_SHOW_CURSOR);
     return true;
 }
+#endif
 
 static const uint32_t SD_CARD_BLOCK_SIZE_IN_BYTES = 512;
+
+#if (EN_SD_CARD_READ_WRITE_SHELL_CMDS == 1)
 uint8_t sd_card_buf[SD_CARD_BLOCK_SIZE_IN_BYTES];
 
 bool shell_cmd_sd_card_read(FILE *f, ShellCmd_t *cmd, const char *s)
@@ -241,6 +257,7 @@ bool shell_cmd_sd_card_write(FILE *f, ShellCmd_t *cmd, const char *s)
         return true;
     }
 }
+#endif
 
 bool print_time_date(FILE *f)
 {
@@ -348,6 +365,7 @@ void init_display()
     printf("done\n");
 }
 
+#if (EN_FATFS_TEST == 1)
 bool shell_cmd_fatfs_test(FILE *f, ShellCmd_t *cmd, const char *s)
 {
 
@@ -378,7 +396,9 @@ bool shell_cmd_fatfs_test(FILE *f, ShellCmd_t *cmd, const char *s)
     }
     return true;
 }
+#endif
 
+#if (EN_FS_SHELL_COMMANDS == 1)
 char current_folder[FF_MAX_LFN] = "/";
 
 bool shell_cmd_ls(FILE *f, ShellCmd_t *cmd, const char *s)
@@ -435,6 +455,7 @@ bool shell_cmd_cd(FILE *f, ShellCmd_t *cmd, const char *s)
             }
             i++;
         }
+        if (slash_pos == 0) slash_pos = 1;
         current_folder[slash_pos] = 0;
     }
     else
@@ -442,7 +463,10 @@ bool shell_cmd_cd(FILE *f, ShellCmd_t *cmd, const char *s)
         if (folder_arg[0] != '/')
         {
             strcpy(new_folder, current_folder);
-            strcat(new_folder, "/");
+            if (current_folder[strlen(current_folder)- 1] != '/')
+            {
+                strcat(new_folder, "/");
+            }
         }
 
         strcat(new_folder, folder_arg);
@@ -461,9 +485,10 @@ bool shell_cmd_cd(FILE *f, ShellCmd_t *cmd, const char *s)
     free(new_folder);
     return is_success;
 }
+#endif
 
+#if (EN_OPEN_BMP == 1)
 int displayImage(const char* fname, FILE *f) {
-#if 0
     fprintf(f, "Opening %s...\r\n", fname);
     FIL file;
     FRESULT res = f_open(&file, fname, FA_READ);
@@ -562,7 +587,7 @@ int displayImage(const char* fname, FILE *f) {
         fprintf(f, "f_close() failed, res = %d\r\n", res);
         return -8;
     }
-#endif
+
     return 0;
 }
 
@@ -573,7 +598,9 @@ bool shell_cmd_open_bmp(FILE *f, ShellCmd_t *cmd, const char *s)
     displayImage(bmp_file_name, f);
     return true;
 }
+#endif
 
+#if (EN_OPEN_VID == 1)
 bool shell_cmd_open_vid(FILE *f, ShellCmd_t *cmd, const char *s)
 {
     const char *vid_file_name = cmd->get_str_arg(s, 1);
@@ -591,18 +618,21 @@ bool shell_cmd_open_vid(FILE *f, ShellCmd_t *cmd, const char *s)
 
 
     const int FRAME_SIZE = 2 * ST7735_WIDTH * ST7735_HEIGHT;
-    const int CHUNK_SIZE = 2 * ST7735_WIDTH * 16;
+    const int CHUNK_SIZE = 2 * ST7735_WIDTH * 32;
     const int NUM_CHUNKS_PER_FRAME = FRAME_SIZE / CHUNK_SIZE;
     uint8_t *buf = (uint8_t*)malloc(CHUNK_SIZE);
-
+    RTC_TimeTypeDef time0, time1;
+    HAL_RTC_GetTime(&hrtc, &time0, RTC_FORMAT_BIN);
+    uint32_t num_frames = 0;
     ST7735_Select();
     bool end = false;
     while (!end)
     {
         ST7735_SetAddressWindow(0, 0, ST7735_WIDTH-1, ST7735_HEIGHT-1);
+        HAL_GPIO_WritePin(ST7735_DC_GPIO_Port, ST7735_DC_Pin, GPIO_PIN_SET);
         for (int chunk = 0; chunk < NUM_CHUNKS_PER_FRAME; chunk++)
         {
-            unsigned bytesRead;
+            unsigned bytesRead = 0;
             res = f_read(&file, buf, CHUNK_SIZE, &bytesRead);
             if(res != FR_OK) {
                 fprintf(f, "Error %d\n", res);
@@ -615,13 +645,28 @@ bool shell_cmd_open_vid(FILE *f, ShellCmd_t *cmd, const char *s)
                 end = 1;
                 break;
             }
-            ST7735_WriteData(buf, CHUNK_SIZE);
+
+            HAL_StatusTypeDef status = HAL_DMA_Start(&hdma_spi1_tx, (uint32_t)buf, (uint32_t)&ST7735_SPI_PORT.Instance->DR, CHUNK_SIZE);
+            ATOMIC_SET_BIT(ST7735_SPI_PORT.Instance->CR2, 0x02);
+            status  = HAL_DMA_PollForTransfer(&hdma_spi1_tx, HAL_DMA_FULL_TRANSFER, HAL_MAX_DELAY);
+            //ST7735_WriteData(buf, CHUNK_SIZE);
         }
-        HAL_Delay(frame_delay_ms);
+        //HAL_Delay(frame_delay_ms);
         int c = fgetc(f);
         if (c =='q')
         {
             end = 1;
+        }
+        num_frames++;
+        HAL_RTC_GetTime(&hrtc, &time1, RTC_FORMAT_BIN);
+        uint32_t dif_seconds;
+        if (time1.Seconds < time0.Seconds) dif_seconds = 60 + time1.Seconds - time0.Seconds;
+        else dif_seconds = time1.Seconds - time0.Seconds;
+        if (dif_seconds >= 10)
+        {
+            time0 = time1;
+            fprintf(f, "fps = %lu\n", (num_frames + 5) / 10);
+            num_frames = 0;
         }
     }
     ST7735_Unselect();
@@ -633,33 +678,51 @@ bool shell_cmd_open_vid(FILE *f, ShellCmd_t *cmd, const char *s)
     }
     return true;
 }
+#endif
 
 void init_shell()
 {
-    shell.add_command(ShellCmd_t("sum", "calculates sum of two integers", shell_cmd_sum_handler));
-    shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
-    shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
-    shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
-    shell.add_command(ShellCmd_t("tetris", "Tetris!", shell_cmd_tetris));
-    shell.add_command(ShellCmd_t("cls", "Clear screen", shell_cmd_clear_screen));
-    shell.add_command(ShellCmd_t("heap", "Heap test", shell_cmd_heap_test));
-    shell.add_command(ShellCmd_t("menu", "Menu test", shell_cmd_menu_test));
-    shell.add_command(ShellCmd_t("sdrd", "SD card read", shell_cmd_sd_card_read));
-    shell.add_command(ShellCmd_t("sdwr", "SD card write", shell_cmd_sd_card_write));
     shell.add_command(ShellCmd_t("time", "Get current date/time", shell_cmd_time_get));
     shell.add_command(ShellCmd_t("reset", "Soft reset", shell_cmd_reset));
+    #if (EN_GPIO_CONTROL_SHELL_CMD == 1)
+    shell.add_command(ShellCmd_t("gpio", "GPIO control", shell_cmd_gpio));
+#endif
+#if (EN_GPIO_TEST == 1)
+    shell.add_command(ShellCmd_t("gpio_speed_test", "GPIO speed test", shell_cmd_gpio_speed_test));
+    shell.add_command(ShellCmd_t("gpio_dma_test", "GPIO DMA test", shell_cmd_gpio_dma_test));
+#endif
+#if (EN_TETRIS == 1)
+    shell.add_command(ShellCmd_t("tetris", "Tetris!", shell_cmd_tetris));
+#endif
+    shell.add_command(ShellCmd_t("cls", "Clear screen", shell_cmd_clear_screen));
+    shell.add_command(ShellCmd_t("heap", "Heap test", shell_cmd_heap_test));
+#if (EN_MENU == 1)
+    shell.add_command(ShellCmd_t("menu", "Menu test", shell_cmd_menu_test));
+#endif
+#if (EN_SD_CARD_READ_WRITE_SHELL_CMDS == 1)
+    shell.add_command(ShellCmd_t("sdrd", "SD card read", shell_cmd_sd_card_read));
+    shell.add_command(ShellCmd_t("sdwr", "SD card write", shell_cmd_sd_card_write));
+#endif
+#if (EN_FATFS_TEST == 1)
     shell.add_command(ShellCmd_t("fatfs_test", "FATFS test", shell_cmd_fatfs_test));
+#endif
+#if (EN_FS_SHELL_COMMANDS == 1)
     shell.add_command(ShellCmd_t("ls", "Print conents of the current directory", shell_cmd_ls));
     shell.add_command(ShellCmd_t("cd", "Change directory", shell_cmd_cd));
+    shell.add_command(ShellCmd_t("pwd", "Print current directory", shell_cmd_pwd));
+#endif
+#if (EN_OPEN_BMP == 1)
     shell.add_command(ShellCmd_t("openbmp", "Open BMP file", shell_cmd_open_bmp));
+#endif
+#if (EN_OPEN_VID == 1)
     shell.add_command(ShellCmd_t("openvid", "Open VID file", shell_cmd_open_vid));
+#endif
 
     shell.set_device(fst7735);
     shell.print_prompt();
     shell.set_device(fuart2);
     shell.print_prompt();
 }
-
 int user_main()
 {
     deselect_all_devices();
@@ -670,6 +733,11 @@ int user_main()
 
     init_display();
 
+#ifdef DEBUG
+    printf("DEBUG=1, build time: " __TIME__ "\n");
+#else
+    printf("DEBUG=0, build time: " __TIME__ "\n");
+#endif
     print_time_date(stdout);
 
     const char *str_welcome = "\nWelcome to the STM32 Experiments Demo FW\n";

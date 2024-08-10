@@ -256,3 +256,9 @@ void Shell_t::run()
         }
     }
 }
+
+void Shell_t::handle_line(const char *s)
+{
+    strcpy(line_buf, s);
+    handle_line();
+}
